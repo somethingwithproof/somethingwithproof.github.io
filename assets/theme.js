@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 // Loaded in <head> so a saved theme applies before first paint.
 (() => {
   const root = document.documentElement;

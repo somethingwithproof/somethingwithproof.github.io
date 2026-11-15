@@ -171,12 +171,55 @@ def fetch_repo(owner: str, repo: str) -> str:
     keep = {k: meta.get(k) for k in ("name", "description", "language", "html_url", "private", "archived",
                                       "fork", "pushed_at", "default_branch", "topics", "stargazers_count")}
     keep["license"] = (meta.get("license") or {}).get("spdx_id")
-    (CACHE / f"{repo}.json").write_text(json.dumps(keep, indent=1))
-    try:
-        readme = gh("api", "-H", "Accept: application/vnd.github.html+json", f"repos/{owner}/{repo}/readme")
-    except subprocess.CalledProcessError:
-        readme = ""
-    (CACHE / f"{repo}.html").write_text(readme)
+    keep.update({k: meta.get(k) for k in ("created_at", "homepage", "open_issues_count")})
+    parent = meta.get("parent") or {}
+    keep["parent"] = {"full_name": parent.get("full_name"), "html_url": parent.get("html_url"),
+                      "description": parent.get("description")} if parent else None
+
+    meta_file, readme_file = CACHE / f"{repo}.json", CACHE / f"{repo}.html"
+    prev = json.loads(meta_file.read_text()) if meta_file.exists() else {}
+
+    def optional(key: str, shape, *args: str):
+        """Fetch one optional resource. 404 (none exists) and 409 (empty repository)
+        mean absent; any other failure keeps the cached value or stops the build,
+        so a transient error never erases data from a published page."""
+        try:
+            raw = gh("api", *args)
+        except subprocess.CalledProcessError as e:
+            if re.search(r"HTTP 40[49]\b", e.stderr or ""):
+                return shape(None)
+            if key in prev:
+                print(f"warning: {repo} {key}: request failed, keeping cached value: {(e.stderr or '').strip()}")
+                return prev[key]
+            raise RuntimeError(f"{repo} {key}: {(e.stderr or '').strip()}") from e
+        return shape(raw)
+
+    def release(raw):
+        rel = json.loads(raw) if raw else None
+        return {"tag": rel["tag_name"], "url": rel["html_url"], "date": rel["published_at"]} if rel else None
+
+    def doc_list(raw):
+        docs = json.loads(raw) if raw else None
+        if not isinstance(docs, list):
+            return []
+        return sorted(({"name": d["name"], "url": d["html_url"]} for d in docs
+                       if isinstance(d, dict) and d.get("type") == "file" and d["name"].lower().endswith(".md")),
+                      key=lambda d: d["name"].lower())
+
+    def commit_list(raw):
+        return [{"msg": c["commit"]["message"].split("\n", 1)[0][:140], "date": c["commit"]["committer"]["date"],
+                 "url": c["html_url"]} for c in (json.loads(raw) if raw else [])]
+
+    keep["release"] = optional("release", release, f"repos/{owner}/{repo}/releases/latest")
+    keep["docs"] = optional("docs", doc_list, f"repos/{owner}/{repo}/contents/docs")
+    # A fork's default branch mostly carries upstream history, so its commits say nothing about this work.
+    keep["commits"] = [] if meta.get("fork") else optional("commits", commit_list, f"repos/{owner}/{repo}/commits?per_page=5")
+    if readme_file.exists():
+        prev["readme"] = readme_file.read_text()
+    readme = optional("readme", lambda raw: raw or "",
+                      "-H", "Accept: application/vnd.github.html+json", f"repos/{owner}/{repo}/readme")
+    meta_file.write_text(json.dumps(keep, indent=1))
+    readme_file.write_text(readme)
     return f"{repo}: {'PRIVATE ' if keep['private'] else ''}{len(readme)} bytes"
 
 
@@ -350,9 +393,15 @@ class Sanitizer(HTMLParser):
         return "".join(x for x in self.out if x is not None)
 
 
+GENERATED_IDS = {"gh-project-details", "gh-upstream", "gh-recent-changes", "gh-repo-docs"}
+
+
 def sanitize_readme(raw: str, owner: str, repo: str, branch: str) -> tuple[str, list]:
     s = Sanitizer(f"https://github.com/{owner}/{repo}/blob/{branch}/",
                   f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/")
+    # repo_details() appends headings with these IDs after the README, so the
+    # README must not claim them; a clash would leave two TOC targets with one ID.
+    s.ids.update(GENERATED_IDS)
     s.feed(raw)
     s.close()
     return s.result(), s.headings
@@ -632,25 +681,120 @@ def topic_cards(s: dict, si: int) -> str:
     return f'<ul class="topic-cards" role="list">{"".join(out)}</ul>'
 
 
+def safe_url(u: str | None) -> str | None:
+    return E(u) if u and urlsplit(u).scheme == "https" else None
+
+
+def projects_of(topics: list[dict]) -> list[dict]:
+    return [p for t in topics for p in t["pages"] if p.get("meta")]
+
+
+def compare_table(projects: list[dict]) -> str:
+    rows = []
+    for p in projects:
+        m = p["meta"]
+        label, tone_ = status_of(m)
+        rel = m.get("release")
+        rows.append(f'<tr><th scope="row"><a href="{p["url"]}">{E(p["name"])}</a></th>'
+                    f'<td><span class="card-status status-{tone_}">{E(label)}</span></td>'
+                    f'<td>{E(m.get("language") or "Not set")}</td><td>{E(m.get("license") or "Not set")}</td>'
+                    f'<td>{E(rel["tag"]) if rel else "None"}</td><td>{fmt_date(m.get("pushed_at"))}</td></tr>')
+    return ('<div class="table-wrap"><table class="compare"><thead><tr><th scope="col">Project</th><th scope="col">Status</th>'
+            '<th scope="col">Language</th><th scope="col">License</th><th scope="col">Latest release</th>'
+            f'<th scope="col">Updated</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
+
+
+def activity_list(projects: list[dict], limit: int) -> str:
+    items = sorted(((c, p) for p in projects for c in p["meta"].get("commits") or []),
+                   key=lambda cp: cp[0]["date"], reverse=True)[:limit]
+    if not items:
+        return ""
+    li = "".join(f'<li><a class="act-msg" href="{safe_url(c["url"]) or p["url"]}">{E(c["msg"])}</a>'
+                 f'<span class="act-meta"><a href="{p["url"]}">{E(p["name"])}</a> · {fmt_date(c["date"])}</span></li>'
+                 for c, p in items)
+    return f'<ul class="activity" role="list">{li}</ul>'
+
+
 def render_section(site: dict, page: dict, built: str) -> str:
     s = page["section"]
-    si = site["sections"].index(s)
+    projects = projects_of(s["topics"])
     n = sum(len(t["pages"]) for t in s["topics"])
     body = (f'<h1>{E(s["name"])}</h1><p class="lede">{E(s["blurb"])}</p>'
-            f'<p class="meta-row"><span>{len(s["topics"])} topics</span><span>{n} pages</span></p>'
-            f'{topic_cards(s, si)}')
-    return docs_page(site, page, body, "", built)
+            f'<p class="meta-row"><span>{len(s["topics"])} topics</span><span>{n} pages</span></p>')
+    if projects:
+        langs, statuses = {}, {}
+        for p in projects:
+            langs[p["meta"].get("language") or "Not set"] = langs.get(p["meta"].get("language") or "Not set", 0) + 1
+            label = status_of(p["meta"])[0]
+            statuses[label] = statuses.get(label, 0) + 1
+        def bar(d):
+            return "".join(f'<li><span>{E(k)}</span><b>{v}</b></li>' for k, v in sorted(d.items(), key=lambda kv: (-kv[1], kv[0])))
+        recent = sorted(projects, key=lambda p: p["meta"].get("pushed_at") or "", reverse=True)[:6]
+        body += (f'<h2 id="at-a-glance" class="docs-h2">At a glance</h2><div class="glance">'
+                 f'<div><h3>Languages</h3><ul class="tally" role="list">{bar(langs)}</ul></div>'
+                 f'<div><h3>Status</h3><ul class="tally" role="list">{bar(statuses)}</ul></div></div>'
+                 f'<h2 id="recently-updated" class="docs-h2">Recently updated</h2>'
+                 f'<ul class="card-grid card-grid-docs" role="list">{"".join(project_card(p) for p in recent)}</ul>')
+    body += f'<h2 id="topics" class="docs-h2">Topics</h2>{topic_cards(s, 0)}'
+    toc = ('<ol><li class="l2"><a href="#at-a-glance">At a glance</a></li><li class="l2"><a href="#recently-updated">Recently updated</a></li>'
+           '<li class="l2"><a href="#topics">Topics</a></li></ol>') if projects else ""
+    return docs_page(site, page, body, toc, built)
 
 
 def render_topic(site: dict, page: dict, built: str) -> str:
     t = page["topic"]
-    si = site["sections"].index(page["section"])
     body = f'<h1>{E(t["name"])}</h1><p class="lede">{E(t["blurb"])}</p>'
     if t.get("local"):
         body += f'<div class="prose">{(CONTENT / "pages" / (t["local"] + ".html")).read_text()}</div>'
+    projects = projects_of([t])
+    toc = []
+    if projects:
+        body += f'<h2 id="compare" class="docs-h2">Compare</h2>{compare_table(projects)}'
+        toc.append(("compare", "Compare"))
     if t["pages"]:
-        body += f'<ul class="card-grid card-grid-docs" role="list">{"".join(project_card(p, "h2") for p in t["pages"])}</ul>'
-    return docs_page(site, page, body, "", built)
+        body += f'<h2 id="pages" class="docs-h2">Pages</h2><ul class="card-grid card-grid-docs" role="list">{"".join(project_card(p, "h3") for p in t["pages"])}</ul>'
+        toc.append(("pages", "Pages"))
+    act = activity_list(projects, 8)
+    if act:
+        body += f'<h2 id="recent-activity" class="docs-h2">Recent activity</h2>{act}'
+        toc.append(("recent-activity", "Recent activity"))
+    toc_html = "<ol>" + "".join(f'<li class="l2"><a href="#{i}">{n}</a></li>' for i, n in toc) + "</ol>" if len(toc) > 1 else ""
+    return docs_page(site, page, body, toc_html, built)
+
+
+def repo_details(p: dict, owner: str) -> tuple[str, list]:
+    m = p["meta"]
+    out, heads = [], []
+    rel = m.get("release")
+    rows = [("Created", fmt_date(m.get("created_at"))), ("Last push", fmt_date(m.get("pushed_at"))),
+            ("Default branch", E(m.get("default_branch") or "")),
+            ("Latest release", f'<a href="{safe_url(rel["url"])}">{E(rel["tag"])}</a> ({fmt_date(rel["date"])})'
+             if rel and safe_url(rel["url"]) else "None yet"),
+            ("Open issues and pull requests", str(m.get("open_issues_count") or 0)),
+            ("Stars", str(m.get("stargazers_count") or 0))]
+    if m.get("topics"):
+        rows.append(("Topics", " ".join(f'<span class="card-status status-muted">{E(t)}</span>' for t in m["topics"])))
+    if safe_url(m.get("homepage")):
+        rows.append(("Homepage", f'<a href="{safe_url(m["homepage"])}">{E(m["homepage"])}</a>'))
+    out.append('<h2 id="gh-project-details">Project details</h2><table class="kv"><tbody>'
+               + "".join(f'<tr><th scope="row">{k}</th><td>{v}</td></tr>' for k, v in rows) + "</tbody></table>")
+    heads.append((2, "Project details", "gh-project-details"))
+    par = m.get("parent")
+    if par and safe_url(par.get("html_url")):
+        out.append(f'<h2 id="gh-upstream">Upstream</h2><p>This is a fork of <a href="{safe_url(par["html_url"])}">{E(par["full_name"])}</a>'
+                   f'{": " + E(par["description"]) if par.get("description") else ""}. The README above comes from upstream; '
+                   f'changes are prepared here and proposed back there.</p>')
+        heads.append((2, "Upstream", "gh-upstream"))
+    if m.get("commits"):
+        li = "".join(f'<li><a href="{safe_url(c["url"]) or "#"}">{E(c["msg"])}</a> <span class="act-meta">{fmt_date(c["date"])}</span></li>'
+                     for c in m["commits"])
+        out.append(f'<h2 id="gh-recent-changes">Recent changes</h2><ul>{li}</ul>')
+        heads.append((2, "Recent changes", "gh-recent-changes"))
+    if m.get("docs"):
+        li = "".join(f'<li><a href="{safe_url(d["url"]) or "#"}">{E(d["name"])}</a></li>' for d in m["docs"])
+        out.append(f'<h2 id="gh-repo-docs">Documentation in the repository</h2><ul>{li}</ul>')
+        heads.append((2, "Documentation in the repository", "gh-repo-docs"))
+    return "".join(out), heads
 
 
 def render_leaf(site: dict, page: dict, built: str) -> str:
@@ -672,6 +816,9 @@ def render_leaf(site: dict, page: dict, built: str) -> str:
                 f'<a class="btn" href="{url}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.1-1.1-1.4-1.1-1.4-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5a3.9 3.9 0 0 1 1-2.7 3.6 3.6 0 0 1 .1-2.7s.8-.3 2.8 1a9.6 9.6 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7a3.9 3.9 0 0 1 1 2.7c0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9V21c0 .3.2.6.7.5A10 10 0 0 0 12 2z"></path></svg>View on GitHub</a></div>'
                 f'<dl class="facts">{fact_html}</dl>')
         edit = f'<a href="{url}/blob/{E(branch)}/README.md">View this page\'s source</a>'
+        extra, extra_heads = repo_details(p, site["owner"])
+        prose += extra
+        heads = heads + extra_heads
     else:
         prose = (CONTENT / "pages" / f"{p['local']}.html").read_text()
         heads = [(int(m[0]), html.unescape(re.sub("<[^>]+>", "", m[2])), m[1])

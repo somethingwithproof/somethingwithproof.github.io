@@ -1,2 +1,33 @@
-<p>A profile of where time goes in a Spine polling cycle, with every number taken from one machine so the results compare.</p>
-<p>[Write-up pending: method, machine, results and what they imply.]</p>
+<p>Where the time goes in a Spine polling cycle, and what that means for proposals to rewrite Spine around an event loop. In short: Spine's own CPU use is negligible. Cycle time is dominated by a fixed completion wait, a lock around script launches, and database writes.</p>
+<h2 id="method">Method</h2>
+<p>Spine 1.2.x was profiled on 11 November 2026 in two setups.</p>
+<ul>
+<li><strong>Loopback:</strong> 200 devices with a mix of SNMP, script and Script Server items, a local <code>snmpd</code>, and MariaDB 10.11 on one aarch64 machine.</li>
+<li><strong>Real network:</strong> a 4 vCPU, 8 GB poller on DigitalOcean, polling simulated SNMP device farms at about 2 ms round trip (same region) and about 76 ms (cross-country), with 500 or 2,000 devices of 23 items each.</li>
+</ul>
+<p>Every number below comes from those runs. The harness is not published yet, so treat these as one set of measurements, not a benchmark.</p>
+<h2 id="findings">Findings</h2>
+<h3 id="completion-wait">A fixed half-second completion wait</h3>
+<p>The main thread checks for finished worker threads every 500 ms, so every cycle ends on a half-second step. On loopback, polling every 10 ms instead cut a mixed 200-device cycle from 1.4 to 2.7 s down to 0.5 to 0.64 s. On the real network the saving was smaller: 0.2 to 1.0 s per cycle, about 5 to 15 percent, and one configuration (2,000 devices on the LAN with 16 threads) got 0.67 s slower.</p>
+<h3 id="script-launch-lock">Script launches serialize on one lock</h3>
+<p>Spine holds a global list mutex while it starts each script, so script launches and closes queue behind one another across all threads. That accounted for 37 percent of Spine's blocked time on loopback.</p>
+<h3 id="database-writes">The database is the bottleneck on a fast network</h3>
+<p>Writing results to <code>poller_output</code> was 34 percent of blocked time; SNMP itself was under 2 percent on loopback. On the real network the database server used 53 percent of CPU during a cycle and Spine 27 percent. Spine issues about 8 queries per device, and three of them (the <code>poller_item</code> next-step update, the per-host item select and the <code>poller_output</code> insert) are about 20 percent each.</p>
+<h3 id="threads">Threads matter only when latency is high</h3>
+<p>Across the 76 ms link, 2,000 devices took 31.8 s with 16 threads, 9.4 s with 64 and 7.0 s with 100, the maximum. On the 2 ms network, thread count made no difference (5.5 to 6.1 s) because the database was already the limit.</p>
+<h3 id="cpu">Spine's CPU use is small</h3>
+<p>On loopback, Spine used 2.8 percent of cycle CPU, about 9 ms. 97 percent went to the PHP Script Server processes loading Cacti at startup.</p>
+<h2 id="silent-data-loss">Two cases where data was dropped without an error</h2>
+<ul>
+<li>With MariaDB's default <code>max_heap_table_size</code> of 16 MB, the in-memory <code>poller_output</code> table filled at 7,840 rows and Spine still exited successfully.</li>
+<li>An SNMP timeout dropped 12 rows without a failure exit.</li>
+</ul>
+<p>Whether Spine logs either case has not been checked yet.</p>
+<h2 id="implications">What this means</h2>
+<p>None of these numbers justify rewriting Spine around an event loop such as libuv. The changes worth proposing are smaller:</p>
+<ol>
+<li>Replace the fixed 500 ms poll with a condition variable or semaphore that wakes the main thread when workers finish.</li>
+<li>Narrow the lock held during script launch.</li>
+<li>Reduce per-device database round trips, which is where a fast network spends its time.</li>
+</ol>
+<p>Each needs re-measuring on a real network before any claim, because loopback hides network round-trip time and exaggerated the completion-wait gain about threefold.</p>

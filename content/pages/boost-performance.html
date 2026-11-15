@@ -3,8 +3,8 @@
 <h2 id="background">Background</h2>
 <p>Boost batches poller results so Cacti can update RRD files on a schedule instead of every polling cycle. Results land in <code>poller_output_boost</code>, and a later batch drain writes them to RRD files.</p>
 <h2 id="root-causes">Root causes</h2>
-<h3 id="write-amplification">The same results are written three times</h3>
-<p>The PHP poller writes each result to both <code>poller_output</code> and <code>poller_output_boost</code>, and Boost's on-demand path copies the processed output again.</p>
+<h3 id="write-amplification">The same results are written up to three times</h3>
+<p>Both data collectors, <code>cmd.php</code> and Spine, insert each result into <code>poller_output</code>, and with Boost's redirect option on they also insert it into <code>poller_output_boost</code>. Boost's on-demand path then copies the processed output a third time.</p>
 <h3 id="per-data-source-queries">Metadata is looked up per data source</h3>
 <p>The batch drain runs separate queries for each data source's unused names, RRD file name and template, which adds up to tens of thousands of small queries per batch on a large install.</p>
 <h3 id="no-bulk-io">Inserts are built by string concatenation</h3>

@@ -176,28 +176,50 @@ def fetch_repo(owner: str, repo: str) -> str:
     keep["parent"] = {"full_name": parent.get("full_name"), "html_url": parent.get("html_url"),
                       "description": parent.get("description")} if parent else None
 
-    def optional(path: str):
-        try:
-            return json.loads(gh("api", path))
-        except subprocess.CalledProcessError:
-            return None  # 404: no releases, no docs/ directory, or an empty repository
+    meta_file, readme_file = CACHE / f"{repo}.json", CACHE / f"{repo}.html"
+    prev = json.loads(meta_file.read_text()) if meta_file.exists() else {}
 
-    rel = optional(f"repos/{owner}/{repo}/releases/latest")
-    keep["release"] = {"tag": rel["tag_name"], "url": rel["html_url"], "date": rel["published_at"]} if rel else None
-    docs = optional(f"repos/{owner}/{repo}/contents/docs")
-    keep["docs"] = sorted(({"name": d["name"], "url": d["html_url"]} for d in docs
-                           if isinstance(d, dict) and d.get("type") == "file" and d["name"].lower().endswith(".md")),
-                          key=lambda d: d["name"].lower()) if isinstance(docs, list) else []
+    def optional(key: str, shape, *args: str):
+        """Fetch one optional resource. 404 (none exists) and 409 (empty repository)
+        mean absent; any other failure keeps the cached value or stops the build,
+        so a transient error never erases data from a published page."""
+        try:
+            raw = gh("api", *args)
+        except subprocess.CalledProcessError as e:
+            if re.search(r"HTTP 40[49]\b", e.stderr or ""):
+                return shape(None)
+            if key in prev:
+                print(f"warning: {repo} {key}: request failed, keeping cached value: {(e.stderr or '').strip()}")
+                return prev[key]
+            raise RuntimeError(f"{repo} {key}: {(e.stderr or '').strip()}") from e
+        return shape(raw)
+
+    def release(raw):
+        rel = json.loads(raw) if raw else None
+        return {"tag": rel["tag_name"], "url": rel["html_url"], "date": rel["published_at"]} if rel else None
+
+    def doc_list(raw):
+        docs = json.loads(raw) if raw else None
+        if not isinstance(docs, list):
+            return []
+        return sorted(({"name": d["name"], "url": d["html_url"]} for d in docs
+                       if isinstance(d, dict) and d.get("type") == "file" and d["name"].lower().endswith(".md")),
+                      key=lambda d: d["name"].lower())
+
+    def commit_list(raw):
+        return [{"msg": c["commit"]["message"].split("\n", 1)[0][:140], "date": c["commit"]["committer"]["date"],
+                 "url": c["html_url"]} for c in (json.loads(raw) if raw else [])]
+
+    keep["release"] = optional("release", release, f"repos/{owner}/{repo}/releases/latest")
+    keep["docs"] = optional("docs", doc_list, f"repos/{owner}/{repo}/contents/docs")
     # A fork's default branch mostly carries upstream history, so its commits say nothing about this work.
-    commits = None if meta.get("fork") else optional(f"repos/{owner}/{repo}/commits?per_page=5")
-    keep["commits"] = [{"msg": c["commit"]["message"].split("\n", 1)[0][:140], "date": c["commit"]["committer"]["date"],
-                        "url": c["html_url"]} for c in commits or []]
-    (CACHE / f"{repo}.json").write_text(json.dumps(keep, indent=1))
-    try:
-        readme = gh("api", "-H", "Accept: application/vnd.github.html+json", f"repos/{owner}/{repo}/readme")
-    except subprocess.CalledProcessError:
-        readme = ""
-    (CACHE / f"{repo}.html").write_text(readme)
+    keep["commits"] = [] if meta.get("fork") else optional("commits", commit_list, f"repos/{owner}/{repo}/commits?per_page=5")
+    if readme_file.exists():
+        prev["readme"] = readme_file.read_text()
+    readme = optional("readme", lambda raw: raw or "",
+                      "-H", "Accept: application/vnd.github.html+json", f"repos/{owner}/{repo}/readme")
+    meta_file.write_text(json.dumps(keep, indent=1))
+    readme_file.write_text(readme)
     return f"{repo}: {'PRIVATE ' if keep['private'] else ''}{len(readme)} bytes"
 
 
@@ -371,9 +393,15 @@ class Sanitizer(HTMLParser):
         return "".join(x for x in self.out if x is not None)
 
 
+GENERATED_IDS = {"gh-project-details", "gh-upstream", "gh-recent-changes", "gh-repo-docs"}
+
+
 def sanitize_readme(raw: str, owner: str, repo: str, branch: str) -> tuple[str, list]:
     s = Sanitizer(f"https://github.com/{owner}/{repo}/blob/{branch}/",
                   f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/")
+    # repo_details() appends headings with these IDs after the README, so the
+    # README must not claim them; a clash would leave two TOC targets with one ID.
+    s.ids.update(GENERATED_IDS)
     s.feed(raw)
     s.close()
     return s.result(), s.headings

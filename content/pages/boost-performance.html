@@ -1,3 +1,25 @@
-<p>Boost batches poller output before writing it to RRD files. This page explains a plan to make that processing faster.</p>
-<p>The work is tracked upstream in <a href="https://github.com/Cacti/cacti/issues/6569">Cacti issue 6569</a>.</p>
-<p>[Write-up pending: the bottleneck, the proposed change and the measurements.]</p>
+<p>On medium and large Cacti installations, <code>poller.php</code> can keep running long after Spine has finished, because Boost processes poller output one small write at a time. This page explains why and sets out a plan, tracked upstream in <a href="https://github.com/Cacti/cacti/issues/6569">Cacti issue 6569</a>.</p>
+<blockquote><p><strong>Status: proposal.</strong> None of this is implemented. It needs review by the Cacti maintainers before any code is written, because it touches the database layer and the poller core.</p></blockquote>
+<h2 id="background">Background</h2>
+<p>Boost batches poller results so Cacti can update RRD files on a schedule instead of every polling cycle. Results land in <code>poller_output_boost</code>, and a later batch drain writes them to RRD files.</p>
+<h2 id="root-causes">Root causes</h2>
+<h3 id="write-amplification">The same results are written three times</h3>
+<p>The PHP poller writes each result to both <code>poller_output</code> and <code>poller_output_boost</code>, and Boost's on-demand path copies the processed output again.</p>
+<h3 id="per-data-source-queries">Metadata is looked up per data source</h3>
+<p>The batch drain runs separate queries for each data source's unused names, RRD file name and template, which adds up to tens of thousands of small queries per batch on a large install.</p>
+<h3 id="no-bulk-io">Inserts are built by string concatenation</h3>
+<p>Every insert is assembled in PHP and sent as SQL. There is no bulk-load path such as <code>LOAD DATA LOCAL INFILE</code> and no prepared batching.</p>
+<h2 id="plan">Plan</h2>
+<p>In priority order, as three or four separate pull requests:</p>
+<ol>
+<li>Add a bulk-load helper to the database layer that uses <code>LOAD DATA LOCAL INFILE</code> from a temporary CSV file, falling back to multi-row <code>INSERT</code> where local infile is disabled.</li>
+<li>Use it in Boost's on-demand path instead of string-built inserts.</li>
+<li>Skip the redundant copy when output is already redirected to Boost.</li>
+<li>Load unused data source names and RRD templates once before the batch loop instead of per data source.</li>
+<li>Clean up <code>poller_output</code> after Boost has processed it.</li>
+<li>Rate-limit output processing in the main poller loop.</li>
+</ol>
+<h2 id="measuring">How it will be measured</h2>
+<p>Each change will be timed on the same machine before and after, against the time from the end of a Spine cycle to the end of <code>poller.php</code>. No speed-up is claimed until those numbers exist.</p>
+<h2 id="related">Related</h2>
+<p><a href="/monitoring/cacti-core/spine-poller-profile/">Spine poller profile</a> measures the other half of the polling cycle and found the database to be the main bottleneck there too.</p>

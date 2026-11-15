@@ -1,15 +1,27 @@
-<p>Changes to Cacti, Spine and the Cacti plugins go upstream through pull requests from the forks listed below. This page walks through one change from start to finish.</p>
+<p>Changes to Cacti, Spine and the Cacti plugins go upstream as pull requests from a fork. This page walks through one change from a clean branch to an open pull request, including the mistake that most often makes a pull request unmergeable.</p>
 <h2 id="before-you-start">Before you start</h2>
 <ul>
-<li>A GitHub account with the fork of the target repository: <a href="https://github.com/somethingwithproof/cacti">cacti</a> or <a href="https://github.com/somethingwithproof/spine">spine</a>.</li>
-<li>A local PHP 8.2 or later for Cacti 1.2.x work.</li>
+<li>A fork of the target repository, such as <a href="https://github.com/somethingwithproof/cacti">cacti</a> or <a href="https://github.com/somethingwithproof/spine">spine</a>.</li>
+<li>A clone with two remotes: <code>origin</code> for the fork and <code>upstream</code> for the official repository.</li>
+<li>PHP 8.2 or later for the Cacti 1.2.x line, or PHP 8.3 or later for <code>develop</code>. PHP 8.4 is the recommended runtime for both.</li>
 </ul>
-<h2 id="steps">Steps</h2>
-<ol>
-<li>Branch from the upstream base branch (<code>1.2.x</code> or <code>develop</code>), not from the fork's copy of it.</li>
-<li>Make one focused change and add or extend a test for it.</li>
-<li>Sign off every commit: <code>git commit -s</code>.</li>
-<li>Open the pull request against the upstream repository and link the issue it fixes.</li>
-</ol>
-<h2 id="next">Next</h2>
-<p>[Write-up pending: review expectations and changelog entries.]</p>
+<h2 id="pick-the-base-branch">1. Pick the base branch</h2>
+<p>Fixes for released versions target <code>1.2.x</code>. New features and larger refactors target <code>develop</code>. If a fix applies to both, open it against <code>1.2.x</code> first.</p>
+<h2 id="branch-from-upstream">2. Branch from upstream, not from the fork</h2>
+<p>A fork's copy of <code>1.2.x</code> or <code>develop</code> falls behind silently. Branching from it produces a pull request that appears to revert hundreds of unrelated upstream commits.</p>
+<pre><code>git fetch upstream
+git switch -c fix/short-description upstream/1.2.x</code></pre>
+<h2 id="make-one-change">3. Make one focused change</h2>
+<ul>
+<li>Keep the pull request to one behavior change, with a test where behavior changes.</li>
+<li>Match the surrounding code's style, even where you would write it differently.</li>
+<li>Leave unrelated formatting and renames for a separate pull request.</li>
+</ul>
+<h2 id="sign-off">4. Sign off every commit</h2>
+<p>Commits need a Developer Certificate of Origin sign-off:</p>
+<pre><code>git commit -s -m "fix: describe the change"</code></pre>
+<h2 id="check-freshness">5. Check the branch against upstream</h2>
+<p>A local check can pass even when the branch is behind, because it compares against stale refs. Ask GitHub directly before opening the pull request; the result should be <code>0</code>:</p>
+<pre><code>gh api repos/Cacti/cacti/compare/1.2.x...YOUR-USER:cacti:fix/short-description --jq .behind_by</code></pre>
+<h2 id="open-the-pull-request">6. Open the pull request</h2>
+<p>Open it against the upstream repository and base branch you chose. Link the issue it fixes, explain the behavior before and after, and list how you tested it. Report security issues privately instead; see <a href="/about/security/reporting-a-vulnerability/">Reporting a vulnerability</a>.</p>

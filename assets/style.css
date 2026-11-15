@@ -252,3 +252,27 @@ code, kbd, pre, .code-title { font-family: ui-monospace, SFMono-Regular, Menlo, 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 @media print { .site-header, .side-wrap, .toc, .pager, .site-footer { display: none; } }
+
+/* ---------- generated detail blocks */
+.docs-h2 { margin-top: 3rem; font-size: 1.45rem; scroll-margin-top: 5rem; }
+.docs-h2 + * { margin-top: 1.25rem; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; max-width: none; }
+.glance > div { padding: 1.25rem; border-radius: 1.25rem; background: var(--surface); }
+.glance h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); margin-bottom: 0.75rem; }
+.tally { list-style: none; margin: 0; padding: 0; }
+.tally li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.3rem 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+.tally li:last-child { border-bottom: 0; }
+.tally b { font-variant-numeric: tabular-nums; }
+.table-wrap { overflow-x: auto; max-width: none; border: 1px solid var(--line); border-radius: 12px; }
+.compare { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.compare th, .compare td { padding: 0.65rem 0.9rem; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.compare thead th { font-size: 0.78rem; font-weight: 600; color: var(--text-2); background: var(--surface); }
+.compare tbody tr:last-child > * { border-bottom: 0; }
+.compare tbody th { font-weight: 600; }
+.activity { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.activity li { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
+.act-msg { color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
+.act-meta { font-size: 0.82rem; color: var(--text-2); }
+.act-meta a { color: var(--text-2); }
+.prose table.kv { display: table; width: 100%; }
+.kv th { width: 14rem; color: var(--text-2); font-weight: 500; background: none; }

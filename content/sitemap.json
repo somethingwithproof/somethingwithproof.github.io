@@ -3,7 +3,14 @@
   "title": "somethingwithproof",
   "tagline": "Monitoring, infrastructure and editing tools, with the evidence attached.",
   "intro": "Each project page separates what ships from what is proposed, links the source it depends on, and lists its open questions.",
-  "featured": ["plugin_doctor", "plugin_cloudflare", "plugin_gpu", "foundry", "github-runners-infra", "stonktop"],
+  "featured": [
+    "plugin_doctor",
+    "plugin_cloudflare",
+    "plugin_gpu",
+    "foundry",
+    "github-runners-infra",
+    "stonktop"
+  ],
   "sections": [
     {
       "slug": "monitoring",
@@ -15,9 +22,152 @@
           "name": "Cacti plugins",
           "blurb": "Plugins for Cacti 1.2. The HPC set (GPU, Redfish, fabric, parallel filesystems, schedulers) is designed together so its graphs sit on the same devices under Cacti permissions, Thold and Maint.",
           "pages": [
-            {"repo": "plugin_gpu"}, {"repo": "plugin_redfish"}, {"repo": "plugin_fabric"},
-            {"repo": "plugin_pfs"}, {"repo": "plugin_hpcsched"}, {"repo": "plugin_cloud"},
-            {"repo": "plugin_smokeping"}, {"repo": "plugin_cloudflare"}, {"repo": "plugin_doctor"}
+            {
+              "repo": "plugin_gpu"
+            },
+            {
+              "repo": "plugin_redfish"
+            },
+            {
+              "repo": "plugin_fabric"
+            },
+            {
+              "repo": "plugin_pfs"
+            },
+            {
+              "repo": "plugin_hpcsched"
+            },
+            {
+              "repo": "plugin_cloud"
+            },
+            {
+              "repo": "plugin_smokeping"
+            },
+            {
+              "repo": "plugin_cloudflare"
+            },
+            {
+              "repo": "plugin_doctor"
+            }
+          ]
+        },
+        {
+          "slug": "plugin-design",
+          "name": "Plugin design documents",
+          "blurb": "The design plans, specifications and reference documents behind the Cacti plugins, published from each repository's docs/ folder.",
+          "pages": [
+            {
+              "doc": "plugin_gpu",
+              "path": "docs/PLAN.md",
+              "name": "GPU plugin plan",
+              "kind": "Explanation",
+              "summary": "Plan for per-GPU utilization, memory, temperature, power, ECC, XID and throttling data from NVIDIA and AMD tools, with each GPU as a data query index on its node."
+            },
+            {
+              "doc": "plugin_redfish",
+              "path": "docs/PLAN.md",
+              "name": "Redfish and IPMI plugin plan",
+              "kind": "Explanation",
+              "summary": "Plan for reading power draw, temperatures, fans and power supply health from server BMCs over Redfish, with IPMI as a fallback."
+            },
+            {
+              "doc": "plugin_fabric",
+              "path": "docs/PLAN.md",
+              "name": "InfiniBand fabric plugin plan",
+              "kind": "Explanation",
+              "summary": "Plan for InfiniBand port counters, link width and speed downgrades, and congestion indicators as Cacti devices and graphs."
+            },
+            {
+              "doc": "plugin_pfs",
+              "path": "docs/PLAN.md",
+              "name": "Parallel filesystem plugin plan",
+              "kind": "Explanation",
+              "summary": "Plan for capacity, fill imbalance, per-target throughput and metadata rates, starting with Lustre, then GPFS and BeeGFS."
+            },
+            {
+              "doc": "plugin_hpcsched",
+              "path": "docs/PLAN.md",
+              "name": "HPC scheduler plugin plan",
+              "kind": "Explanation",
+              "summary": "Plan for queue depth, pending reasons, node states and partition utilization, starting with Slurm, then PBS and LSF."
+            },
+            {
+              "doc": "plugin_cloud",
+              "path": "docs/PLAN.md",
+              "name": "Cloud plugin plan",
+              "kind": "Explanation",
+              "summary": "Plan for bringing resources and metrics from DigitalOcean, AWS, Google Cloud and Azure into Cacti through one plugin."
+            },
+            {
+              "doc": "plugin_smokeping",
+              "path": "docs/PLAN.md",
+              "name": "SmokePing plugin plan",
+              "kind": "Explanation",
+              "summary": "Plan for SmokePing latency and loss as Cacti devices and smoke graphs, alertable with Thold and Maint."
+            },
+            {
+              "doc": "plugin_smokeping",
+              "path": "docs/install.md",
+              "name": "Installing the SmokePing plugin",
+              "kind": "How-to",
+              "summary": "From a Cacti 1.2 host and a SmokePing install to graphs in Cacti, including read-only access to SmokePing's data directory."
+            },
+            {
+              "doc": "plugin_cloudflare",
+              "path": "docs/spec.md",
+              "name": "Cloudflare plugin requirements",
+              "kind": "Reference",
+              "summary": "The requirements source for the Cloudflare plugin: the original brief with the owner's amendments applied."
+            },
+            {
+              "doc": "plugin_cloudflare",
+              "path": "docs/design.md",
+              "name": "Cloudflare plugin design decisions",
+              "kind": "Explanation",
+              "summary": "The decisions behind the Cloudflare plugin's implementation, with the Cacti and Cloudflare facts each one rests on."
+            },
+            {
+              "doc": "plugin_cloudflare",
+              "path": "docs/security.md",
+              "name": "Cloudflare plugin security controls",
+              "kind": "Explanation",
+              "summary": "The security controls implemented through milestone 3, with the code that enforces each one."
+            },
+            {
+              "doc": "plugin_cloudflare",
+              "path": "docs/token-permissions.md",
+              "name": "Cloudflare API token permissions",
+              "kind": "Reference",
+              "summary": "The read-only, scoped token permissions the plugin needs. Global API keys are refused."
+            },
+            {
+              "doc": "plugin_cloudflare",
+              "path": "docs/metrics.md",
+              "name": "Cloudflare plugin metrics",
+              "kind": "Reference",
+              "summary": "The tunnel metrics the plugin graphs, and how stored discovery data becomes one observation per metric."
+            },
+            {
+              "doc": "plugin_cloudflare",
+              "path": "docs/schema.md",
+              "name": "Cloudflare plugin database schema",
+              "kind": "Reference",
+              "summary": "The plugin's tables, columns and migrations."
+            },
+            {
+              "doc": "plugin_cloudflare",
+              "path": "docs/collector-protocol.md",
+              "name": "Cloudflare collector protocol",
+              "kind": "Reference",
+              "summary": "What the script server data query accepts and prints, and what any engine writing the plugin tables must provide."
+            },
+            {
+              "doc": "plugin_cloudflare",
+              "path": "docs/compatibility.md",
+              "name": "Cloudflare plugin compatibility",
+              "kind": "Reference",
+              "summary": "Supported Cacti and PHP versions, what is tested, and the external interfaces the plugin depends on."
+            }
           ]
         },
         {
@@ -25,11 +175,32 @@
           "name": "Cacti core and Spine",
           "blurb": "Work on Cacti itself and the Spine C poller.",
           "pages": [
-            {"local": "upstream-contributions", "name": "Upstream contributions", "kind": "Tutorial", "summary": "How changes reach Cacti, Spine and their plugins: forks, branches, sign-off and review."},
-            {"local": "spine-poller-profile", "name": "Spine poller profile", "kind": "Explanation", "summary": "Where Spine poller time goes, measured on one machine."},
-            {"local": "boost-performance", "name": "Boost performance", "kind": "Explanation", "summary": "Plan for faster Boost poller output processing, tracked in Cacti issue 6569."},
-            {"repo": "cacti", "summary": "Fork of Cacti, the RRDtool-based network graphing solution, used to prepare upstream pull requests."},
-            {"repo": "spine", "summary": "Fork of Spine, Cacti's C poller, used to prepare upstream pull requests."}
+            {
+              "local": "upstream-contributions",
+              "name": "Upstream contributions",
+              "kind": "Tutorial",
+              "summary": "How changes reach Cacti, Spine and their plugins: forks, branches, sign-off and review."
+            },
+            {
+              "local": "spine-poller-profile",
+              "name": "Spine poller profile",
+              "kind": "Explanation",
+              "summary": "Where Spine poller time goes, measured on one machine."
+            },
+            {
+              "local": "boost-performance",
+              "name": "Boost performance",
+              "kind": "Explanation",
+              "summary": "Plan for faster Boost poller output processing, tracked in Cacti issue 6569."
+            },
+            {
+              "repo": "cacti",
+              "summary": "Fork of Cacti, the RRDtool-based network graphing solution, used to prepare upstream pull requests."
+            },
+            {
+              "repo": "spine",
+              "summary": "Fork of Spine, Cacti's C poller, used to prepare upstream pull requests."
+            }
           ]
         },
         {
@@ -37,10 +208,22 @@
           "name": "RRDtool and graphing",
           "blurb": "The round robin database and the graphing tools built on it, kept as forks for patches and testing.",
           "pages": [
-            {"repo": "rrdtool-1.x", "summary": "Fork of RRDtool 1.x, the round robin database Cacti stores and graphs data with."},
-            {"repo": "pecl-processing-rrd", "summary": "Fork of the PHP extension that binds to RRDtool."},
-            {"repo": "mrtg", "summary": "Fork of MRTG, the Multi Router Traffic Grapher."},
-            {"repo": "SmokePing", "summary": "Fork of SmokePing, the active latency monitoring system."}
+            {
+              "repo": "rrdtool-1.x",
+              "summary": "Fork of RRDtool 1.x, the round robin database Cacti stores and graphs data with."
+            },
+            {
+              "repo": "pecl-processing-rrd",
+              "summary": "Fork of the PHP extension that binds to RRDtool."
+            },
+            {
+              "repo": "mrtg",
+              "summary": "Fork of MRTG, the Multi Router Traffic Grapher."
+            },
+            {
+              "repo": "SmokePing",
+              "summary": "Fork of SmokePing, the active latency monitoring system."
+            }
           ]
         },
         {
@@ -48,8 +231,18 @@
           "name": "Nagios and SNMP",
           "blurb": "Standalone check plugins and SNMP agents that work with any Nagios-compatible or SNMP poller.",
           "pages": [
-            {"repo": "nagios-plugins-collection"}, {"repo": "check_bitcoin_price"},
-            {"repo": "snmp-bind9-statistics"}, {"repo": "python-network-discovery-tool"}
+            {
+              "repo": "nagios-plugins-collection"
+            },
+            {
+              "repo": "check_bitcoin_price"
+            },
+            {
+              "repo": "snmp-bind9-statistics"
+            },
+            {
+              "repo": "python-network-discovery-tool"
+            }
           ]
         },
         {
@@ -57,8 +250,13 @@
           "name": "Runtimes and clients",
           "blurb": "The PHP interpreter fork and API clients used around the monitoring stack.",
           "pages": [
-            {"repo": "php-src", "summary": "Fork of the PHP interpreter, used for extension patches such as SNMP."},
-            {"repo": "ruby-cloudera"}
+            {
+              "repo": "php-src",
+              "summary": "Fork of the PHP interpreter, used for extension patches such as SNMP."
+            },
+            {
+              "repo": "ruby-cloudera"
+            }
           ]
         }
       ]
@@ -73,24 +271,59 @@
           "name": "Terraform",
           "blurb": "Modules and configurations for Cloudflare, AWS, Kubernetes and GitHub.",
           "pages": [
-            {"repo": "terraform-cloudflare-maintenance"}, {"repo": "terraform-kubernetes-installer"},
-            {"repo": "terraform-aws-dedicated-host"}, {"repo": "terraform-aws-host-management"},
-            {"repo": "serverless-jenkins-on-aws-fargate"}, {"repo": "github-to-terraform"}
+            {
+              "repo": "terraform-cloudflare-maintenance"
+            },
+            {
+              "repo": "terraform-kubernetes-installer"
+            },
+            {
+              "repo": "terraform-aws-dedicated-host"
+            },
+            {
+              "repo": "terraform-aws-host-management"
+            },
+            {
+              "repo": "serverless-jenkins-on-aws-fargate"
+            },
+            {
+              "repo": "github-to-terraform"
+            }
           ]
         },
         {
           "slug": "kubernetes-gitops",
           "name": "Kubernetes and GitOps",
           "blurb": "Cluster platforms, a GitOps reference architecture and container orchestration.",
-          "pages": [{"repo": "mantl"}, {"repo": "gitops-infrastructure-demo"}, {"repo": "docker-wordpress-swarm-setup"}]
+          "pages": [
+            {
+              "repo": "mantl"
+            },
+            {
+              "repo": "gitops-infrastructure-demo"
+            },
+            {
+              "repo": "docker-wordpress-swarm-setup"
+            }
+          ]
         },
         {
           "slug": "configuration-management",
           "name": "Configuration management",
           "blurb": "Ansible roles and collections, and Chef cookbooks.",
           "pages": [
-            {"repo": "ansible-wordpress-enterprise"}, {"repo": "ansible-role-mariadb"},
-            {"repo": "ansible-collection-firewall"}, {"repo": "chef-cookbooks"}
+            {
+              "repo": "ansible-wordpress-enterprise"
+            },
+            {
+              "repo": "ansible-role-mariadb"
+            },
+            {
+              "repo": "ansible-collection-firewall"
+            },
+            {
+              "repo": "chef-cookbooks"
+            }
           ]
         },
         {
@@ -98,8 +331,18 @@
           "name": "Linux and cloud ops",
           "blurb": "Firewall sync, kernel management, AWS automation and maintenance scripts.",
           "pages": [
-            {"repo": "cloudflare-ufw-sync"}, {"repo": "grub-kernel-updater"},
-            {"repo": "aws-ssm-automation-scripts"}, {"repo": "utility-scripts-collection"}
+            {
+              "repo": "cloudflare-ufw-sync"
+            },
+            {
+              "repo": "grub-kernel-updater"
+            },
+            {
+              "repo": "aws-ssm-automation-scripts"
+            },
+            {
+              "repo": "utility-scripts-collection"
+            }
           ]
         }
       ]
@@ -113,13 +356,30 @@
           "slug": "pipelines",
           "name": "Pipelines",
           "blurb": "CI/CD engines, shared libraries and runner infrastructure.",
-          "pages": [{"repo": "foundry"}, {"repo": "jenkins-script-library"}, {"repo": "github-runners-infra"}]
+          "pages": [
+            {
+              "repo": "foundry"
+            },
+            {
+              "repo": "jenkins-script-library"
+            },
+            {
+              "repo": "github-runners-infra"
+            }
+          ]
         },
         {
           "slug": "supply-chain",
           "name": "Supply chain and commits",
           "blurb": "SBOM validation and conventional commit tooling.",
-          "pages": [{"repo": "validate-sbom-action"}, {"repo": "commitkit-rust"}]
+          "pages": [
+            {
+              "repo": "validate-sbom-action"
+            },
+            {
+              "repo": "commitkit-rust"
+            }
+          ]
         }
       ]
     },
@@ -132,22 +392,39 @@
           "slug": "wikipedia-editing",
           "name": "Wikipedia editing",
           "blurb": "Auditing and batch editing tools for Wikipedia articles.",
-          "pages": [{"repo": "wiki-mos-audit"}, {"repo": "awb-rs"}]
+          "pages": [
+            {
+              "repo": "wiki-mos-audit"
+            },
+            {
+              "repo": "awb-rs"
+            }
+          ]
         },
         {
           "slug": "genealogy",
           "name": "Genealogy",
           "blurb": "Classic genealogy programs, kept as forks for patches and builds.",
           "pages": [
-            {"repo": "lifelines", "summary": "Fork of the LifeLines genealogy program."},
-            {"repo": "DeadEnds", "summary": "Fork of the DeadEnds genealogical software."}
+            {
+              "repo": "lifelines",
+              "summary": "Fork of the LifeLines genealogy program."
+            },
+            {
+              "repo": "DeadEnds",
+              "summary": "Fork of the DeadEnds genealogical software."
+            }
           ]
         },
         {
           "slug": "data",
           "name": "Data projects",
           "blurb": "Exploratory data and mapping projects.",
-          "pages": [{"repo": "california-solar-atlas"}]
+          "pages": [
+            {
+              "repo": "california-solar-atlas"
+            }
+          ]
         }
       ]
     },
@@ -160,13 +437,30 @@
           "slug": "automation",
           "name": "GTD and automation",
           "blurb": "Getting Things Done capture and review workflows, and Git automation on macOS.",
-          "pages": [{"repo": "MacGTD"}, {"repo": "macos-git-automation"}]
+          "pages": [
+            {
+              "repo": "MacGTD"
+            },
+            {
+              "repo": "macos-git-automation"
+            }
+          ]
         },
         {
           "slug": "apps",
           "name": "Apps",
           "blurb": "Terminal and native apps, and MCP servers for macOS apps.",
-          "pages": [{"repo": "stonktop"}, {"repo": "StocksExporter"}, {"repo": "mcp-servers"}]
+          "pages": [
+            {
+              "repo": "stonktop"
+            },
+            {
+              "repo": "StocksExporter"
+            },
+            {
+              "repo": "mcp-servers"
+            }
+          ]
         }
       ]
     },
@@ -180,8 +474,18 @@
           "name": "Security",
           "blurb": "How security issues in these projects are handled.",
           "pages": [
-            {"local": "security-policy", "name": "Security policy", "kind": "Reference", "summary": "Which versions get fixes and how fixes are disclosed."},
-            {"local": "reporting-a-vulnerability", "name": "Reporting a vulnerability", "kind": "How-to", "summary": "Report a vulnerability privately, step by step."}
+            {
+              "local": "security-policy",
+              "name": "Security policy",
+              "kind": "Reference",
+              "summary": "Which versions get fixes and how fixes are disclosed."
+            },
+            {
+              "local": "reporting-a-vulnerability",
+              "name": "Reporting a vulnerability",
+              "kind": "How-to",
+              "summary": "Report a vulnerability privately, step by step."
+            }
           ]
         },
         {

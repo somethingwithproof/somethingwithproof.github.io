@@ -195,8 +195,16 @@ def fetch_repo(owner: str, repo: str) -> str:
         return shape(raw)
 
     def release(raw):
-        rel = json.loads(raw) if raw else None
-        return {"tag": rel["tag_name"], "url": rel["html_url"], "date": rel["published_at"]} if rel else None
+        # releases/latest skips pre-releases, so take the newest published release
+        # from every page of the list, whose order is not documented. Drafts are not
+        # public and are never shown. --slurp wraps the pages in one outer array.
+        pages = json.loads(raw) if raw else []
+        rels = [r for page in pages for r in page if not r.get("draft") and r.get("published_at")]
+        if not rels:
+            return None
+        rel = max(rels, key=lambda r: r["published_at"])
+        return {"tag": rel["tag_name"], "url": rel["html_url"], "date": rel["published_at"],
+                "prerelease": bool(rel.get("prerelease"))}
 
     def doc_list(raw):
         docs = json.loads(raw) if raw else None
@@ -210,7 +218,7 @@ def fetch_repo(owner: str, repo: str) -> str:
         return [{"msg": c["commit"]["message"].split("\n", 1)[0][:140], "date": c["commit"]["committer"]["date"],
                  "url": c["html_url"]} for c in (json.loads(raw) if raw else [])]
 
-    keep["release"] = optional("release", release, f"repos/{owner}/{repo}/releases/latest")
+    keep["release"] = optional("release", release, "--paginate", "--slurp", f"repos/{owner}/{repo}/releases?per_page=100")
     keep["docs"] = optional("docs", doc_list, f"repos/{owner}/{repo}/contents/docs")
     # A fork's default branch mostly carries upstream history, so its commits say nothing about this work.
     keep["commits"] = [] if meta.get("fork") else optional("commits", commit_list, f"repos/{owner}/{repo}/commits?per_page=5")
@@ -481,8 +489,12 @@ def status_of(meta: dict) -> tuple[str, str]:
         return "Fork", "muted"
     # A Cacti plugin without a release is still being built; saying "Code
     # available" would suggest something installable.
-    if meta.get("name", "").startswith("plugin_") and not meta.get("release"):
-        return "In development", "accent"
+    if meta.get("name", "").startswith("plugin_"):
+        rel = meta.get("release")
+        if not rel:
+            return "In development", "accent"
+        if rel.get("prerelease"):
+            return "Pre-release", "accent"
     return "Code available", "ok"
 
 
@@ -771,7 +783,7 @@ def compare_table(projects: list[dict]) -> str:
         rows.append(f'<tr><th scope="row"><a href="{p["url"]}">{E(p["name"])}</a></th>'
                     f'<td><span class="card-status status-{tone_}">{E(label)}</span></td>'
                     f'<td>{E(m.get("language") or "Not set")}</td><td>{E(m.get("license") or "Not set")}</td>'
-                    f'<td>{E(rel["tag"]) if rel else "None"}</td><td>{fmt_date(m.get("pushed_at"))}</td></tr>')
+                    f'<td>{E(rel["tag"]) + (" (pre-release)" if rel.get("prerelease") else "") if rel else "None"}</td><td>{fmt_date(m.get("pushed_at"))}</td></tr>')
     return ('<div class="table-wrap"><table class="compare"><thead><tr><th scope="col">Project</th><th scope="col">Status</th>'
             '<th scope="col">Language</th><th scope="col">License</th><th scope="col">Latest release</th>'
             f'<th scope="col">Updated</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
@@ -841,7 +853,7 @@ def repo_details(p: dict, owner: str) -> tuple[str, list]:
     rel = m.get("release")
     rows = [("Created", fmt_date(m.get("created_at"))), ("Last push", fmt_date(m.get("pushed_at"))),
             ("Default branch", E(m.get("default_branch") or "")),
-            ("Latest release", f'<a href="{safe_url(rel["url"])}">{E(rel["tag"])}</a> ({fmt_date(rel["date"])})'
+            ("Latest release", f'<a href="{safe_url(rel["url"])}">{E(rel["tag"])}</a>{" pre-release" if rel.get("prerelease") else ""} ({fmt_date(rel["date"])})'
              if rel and safe_url(rel["url"]) else "None yet"),
             ("Open issues and pull requests", str(m.get("open_issues_count") or 0)),
             ("Stars", str(m.get("stargazers_count") or 0))]

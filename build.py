@@ -206,6 +206,14 @@ def fetch_repo(owner: str, repo: str) -> str:
         return {"tag": rel["tag_name"], "url": rel["html_url"], "date": rel["published_at"],
                 "prerelease": bool(rel.get("prerelease"))}
 
+    def milestone_list(raw):
+        # Open and closed milestones in creation order (number), which is the order the
+        # plans give them; the API sorts by due date, and most have none.
+        pages = json.loads(raw) if raw else []
+        ms = sorted((m for page in pages for m in page), key=lambda m: m["number"])
+        return [{"title": m["title"], "url": m["html_url"], "state": m["state"],
+                 "open": m["open_issues"], "closed": m["closed_issues"]} for m in ms]
+
     def doc_list(raw):
         docs = json.loads(raw) if raw else None
         if not isinstance(docs, list):
@@ -219,6 +227,8 @@ def fetch_repo(owner: str, repo: str) -> str:
                  "url": c["html_url"]} for c in (json.loads(raw) if raw else [])]
 
     keep["release"] = optional("release", release, "--paginate", "--slurp", f"repos/{owner}/{repo}/releases?per_page=100")
+    keep["milestones"] = optional("milestones", milestone_list, "--paginate", "--slurp",
+                                  f"repos/{owner}/{repo}/milestones?state=all&per_page=100")
     keep["docs"] = optional("docs", doc_list, f"repos/{owner}/{repo}/contents/docs")
     # A fork's default branch mostly carries upstream history, so its commits say nothing about this work.
     keep["commits"] = [] if meta.get("fork") else optional("commits", commit_list, f"repos/{owner}/{repo}/commits?per_page=5")
@@ -774,8 +784,26 @@ def projects_of(topics: list[dict]) -> list[dict]:
     return [p for t in topics for p in t["pages"] if p.get("meta")]
 
 
+def furthest_milestone(m: dict) -> dict | None:
+    """The last milestone with closed work: every milestone can keep open issues
+    while later ones progress, so the first open one says little."""
+    done = [ms for ms in m.get("milestones") or [] if ms["closed"] or ms["state"] == "closed"]
+    return done[-1] if done else None
+
+
+def milestone_cell(m: dict) -> str:
+    ms = furthest_milestone(m)
+    if not ms:
+        return "None on GitHub"
+    total = len(m["milestones"])
+    return (f'{E(ms["title"])} <span class="act-meta">({ms["closed"]} of {ms["open"] + ms["closed"]} issues closed; '
+            f'{total} milestones)</span>')
+
+
 def compare_table(projects: list[dict]) -> str:
     rows = []
+    # Only tables with planned work get the column; most repositories have no milestones.
+    with_ms = any(p["meta"].get("milestones") for p in projects)
     for p in projects:
         m = p["meta"]
         label, tone_ = status_of(m)
@@ -783,10 +811,13 @@ def compare_table(projects: list[dict]) -> str:
         rows.append(f'<tr><th scope="row"><a href="{p["url"]}">{E(p["name"])}</a></th>'
                     f'<td><span class="card-status status-{tone_}">{E(label)}</span></td>'
                     f'<td>{E(m.get("language") or "Not set")}</td><td>{E(m.get("license") or "Not set")}</td>'
-                    f'<td>{E(rel["tag"]) + (" (pre-release)" if rel.get("prerelease") else "") if rel else "None"}</td><td>{fmt_date(m.get("pushed_at"))}</td></tr>')
+                    f'<td>{E(rel["tag"]) + (" (pre-release)" if rel.get("prerelease") else "") if rel else "None"}</td>'
+                    + (f'<td>{milestone_cell(m)}</td>' if with_ms else "")
+                    + f'<td>{fmt_date(m.get("pushed_at"))}</td></tr>')
     return ('<div class="table-wrap"><table class="compare"><thead><tr><th scope="col">Project</th><th scope="col">Status</th>'
             '<th scope="col">Language</th><th scope="col">License</th><th scope="col">Latest release</th>'
-            f'<th scope="col">Updated</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
+            + ('<th scope="col">Furthest milestone</th>' if with_ms else "")
+            + f'<th scope="col">Updated</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
 
 
 def activity_list(projects: list[dict], limit: int) -> str:
@@ -864,6 +895,14 @@ def repo_details(p: dict, owner: str) -> tuple[str, list]:
     out.append('<h2 id="gh-project-details">Project details</h2><table class="kv"><tbody>'
                + "".join(f'<tr><th scope="row">{k}</th><td>{v}</td></tr>' for k, v in rows) + "</tbody></table>")
     heads.append((2, "Project details", "gh-project-details"))
+    if m.get("milestones"):
+        li = "".join(f'<tr><th scope="row">{f"""<a href="{safe_url(ms["url"])}">{E(ms["title"])}</a>""" if safe_url(ms["url"]) else E(ms["title"])}</th>'
+                     f'<td>{"Closed" if ms["state"] == "closed" else "Open"}</td>'
+                     f'<td>{ms["closed"]} of {ms["open"] + ms["closed"]}</td></tr>' for ms in m["milestones"])
+        out.append('<h2 id="gh-milestones">Milestones</h2><div class="table-wrap"><table class="compare"><thead><tr>'
+                   '<th scope="col">Milestone</th><th scope="col">State</th><th scope="col">Issues closed</th>'
+                   f'</tr></thead><tbody>{li}</tbody></table></div>')
+        heads.append((2, "Milestones", "gh-milestones"))
     par = m.get("parent")
     if par and safe_url(par.get("html_url")):
         out.append(f'<h2 id="gh-upstream">Upstream</h2><p>This is a fork of <a href="{safe_url(par["html_url"])}">{E(par["full_name"])}</a>'

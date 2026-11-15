@@ -54,57 +54,8 @@
         {
           "slug": "plugin-design",
           "name": "Plugin design documents",
-          "blurb": "The design plans, specifications and reference documents behind the Cacti plugins, published from each repository's docs/ folder.",
+          "blurb": "Installation, specification and reference documents for the Cacti plugins, published from each repository's docs/ folder.",
           "pages": [
-            {
-              "doc": "plugin_gpu",
-              "path": "docs/PLAN.md",
-              "name": "GPU plugin plan",
-              "kind": "Explanation",
-              "summary": "Plan for per-GPU utilization, memory, temperature, power, ECC, XID and throttling data from NVIDIA and AMD tools, with each GPU as a data query index on its node."
-            },
-            {
-              "doc": "plugin_redfish",
-              "path": "docs/PLAN.md",
-              "name": "Redfish and IPMI plugin plan",
-              "kind": "Explanation",
-              "summary": "Plan for reading power draw, temperatures, fans and power supply health from server BMCs over Redfish, with IPMI as a fallback."
-            },
-            {
-              "doc": "plugin_fabric",
-              "path": "docs/PLAN.md",
-              "name": "InfiniBand fabric plugin plan",
-              "kind": "Explanation",
-              "summary": "Plan for InfiniBand port counters, link width and speed downgrades, and congestion indicators as Cacti devices and graphs."
-            },
-            {
-              "doc": "plugin_pfs",
-              "path": "docs/PLAN.md",
-              "name": "Parallel filesystem plugin plan",
-              "kind": "Explanation",
-              "summary": "Plan for capacity, fill imbalance, per-target throughput and metadata rates, starting with Lustre, then GPFS and BeeGFS."
-            },
-            {
-              "doc": "plugin_hpcsched",
-              "path": "docs/PLAN.md",
-              "name": "HPC scheduler plugin plan",
-              "kind": "Explanation",
-              "summary": "Plan for queue depth, pending reasons, node states and partition utilization, starting with Slurm, then PBS and LSF."
-            },
-            {
-              "doc": "plugin_cloud",
-              "path": "docs/PLAN.md",
-              "name": "Cloud plugin plan",
-              "kind": "Explanation",
-              "summary": "Plan for bringing resources and metrics from DigitalOcean, AWS, Google Cloud and Azure into Cacti through one plugin."
-            },
-            {
-              "doc": "plugin_smokeping",
-              "path": "docs/PLAN.md",
-              "name": "SmokePing plugin plan",
-              "kind": "Explanation",
-              "summary": "Plan for SmokePing latency and loss as Cacti devices and smoke graphs, alertable with Thold and Maint."
-            },
             {
               "doc": "plugin_smokeping",
               "path": "docs/install.md",

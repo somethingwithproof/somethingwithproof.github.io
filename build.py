@@ -475,13 +475,14 @@ def clean_desc(desc: str | None) -> str:
 
 
 def status_of(meta: dict) -> tuple[str, str]:
-    desc = (meta.get("description") or "").lower()
     if meta.get("archived"):
         return "Archived", "muted"
-    if desc.startswith("proposed"):
-        return "Proposal", "accent"
     if meta.get("fork"):
         return "Fork", "muted"
+    # A Cacti plugin without a release is still being built; saying "Code
+    # available" would suggest something installable.
+    if meta.get("name", "").startswith("plugin_") and not meta.get("release"):
+        return "In development", "accent"
     return "Code available", "ok"
 
 

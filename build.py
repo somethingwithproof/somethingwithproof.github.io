@@ -288,6 +288,37 @@ def fetch_doc(owner: str, repo: str, path: str) -> str:
     return f"{repo}/{path}: {len(raw)} bytes"
 
 
+# ---------------------------------------------------------------- Mermaid
+# Served from this site so visitors never load a third-party script. The build
+# downloads one pinned npm release and refuses it unless the registry's sha512 matches.
+MERMAID_VERSION = "12.2.0"
+MERMAID_TARBALL = f"https://registry.npmjs.org/mermaid/-/mermaid-{MERMAID_VERSION}.tgz"
+MERMAID_INTEGRITY = "sha512-w7nr/SFrLO7BaVTs3dQTvYSV6nYSBj0Yy9DjBhsIJtAcHqRzXSq4Pg32ujHZ/AdWsAMNEvvhbm5dt9E2tOiHzw=="
+
+
+def vendor_mermaid() -> tuple[Path, Path]:
+    js, lic = CACHE / f"mermaid-{MERMAID_VERSION}.min.js", CACHE / f"mermaid-{MERMAID_VERSION}.LICENSE"
+    if js.exists() and lic.exists():
+        return js, lic
+    import base64, hashlib, io, tarfile
+    req = urllib.request.Request(MERMAID_TARBALL, headers={"User-Agent": "static-site-build"})
+    with urllib.request.urlopen(req, timeout=60) as res:
+        blob = res.read()
+    got = "sha512-" + base64.b64encode(hashlib.sha512(blob).digest()).decode()
+    if got != MERMAID_INTEGRITY:
+        sys.exit(f"mermaid {MERMAID_VERSION}: integrity mismatch, refusing to use it")
+    CACHE.mkdir(exist_ok=True)
+    with tarfile.open(fileobj=io.BytesIO(blob), mode="r:gz") as tar:
+        # Read the two members by name; nothing is extracted to a path from the archive.
+        for member, dest in (("package/dist/mermaid.min.js", js), ("package/LICENSE", lic)):
+            data = tar.extractfile(member)
+            if data is None:
+                sys.exit(f"mermaid {MERMAID_VERSION}: {member} missing from tarball")
+            dest.write_bytes(data.read())
+    print(f"vendored mermaid {MERMAID_VERSION}")
+    return js, lic
+
+
 # ---------------------------------------------------------------- README sanitizer
 # README HTML comes from the GitHub API, which sanitizes it, but it is still
 # third-party markup entering our pages, so it passes an allowlist here and
@@ -340,6 +371,11 @@ class Sanitizer(HTMLParser):
             self.skip_anchor += 1
             return
         if tag not in ALLOWED:
+            return
+        if tag == "pre" and a.get("lang") == "mermaid":
+            # Diagram source stays plain text; site.js renders it with Mermaid's strict security level.
+            self.out.append('<pre class="mermaid">')
+            self.stack.append("pre")
             return
         if tag == "h1":
             if not self.seen_h1:
@@ -911,6 +947,7 @@ def build(site: dict) -> None:
     (OUT / "assets" / "tokens.css").write_text(build_tokens())
 
     index = []
+    diagrams = diagram_pages = 0
     for page in pages:
         if page["level"] == 1:
             out = render_home(site, counts, built)
@@ -923,10 +960,18 @@ def build(site: dict) -> None:
         dest = OUT / page["url"].strip("/") / "index.html"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(out)
+        n = out.count('<pre class="mermaid">')
+        diagrams, diagram_pages = diagrams + n, diagram_pages + (1 if n else 0)
         trail = " / ".join(n for n, _ in page["crumbs"][1:])
         index.append({"t": page["name"], "u": page["url"], "d": page.get("summary", ""), "p": trail})
 
     (OUT / "search.json").write_text(json.dumps(index, separators=(",", ":")))
+    if diagrams:
+        js, lic = vendor_mermaid()
+        (OUT / "assets" / "vendor").mkdir()
+        shutil.copy(js, OUT / "assets" / "vendor" / "mermaid.min.js")
+        shutil.copy(lic, OUT / "assets" / "vendor" / "mermaid.LICENSE.txt")
+        print(f"diagrams: {diagrams} on {diagram_pages} pages")
     nf = {"level": 0, "url": "/404.html", "name": "Page not found", "crumbs": [("Home", "/")]}
     (OUT / "404.html").write_text(docs_page(site, nf,
         '<h1>Page not found</h1><p class="lede">That address does not exist. <a href="/">Browse all projects.</a></p>',

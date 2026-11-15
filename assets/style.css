@@ -278,3 +278,8 @@ code, kbd, pre, .code-title { font-family: ui-monospace, SFMono-Regular, Menlo, 
 .kv th { width: 38%; color: var(--text-2); font-weight: 500; background: none; }
 .kv th, .kv td { white-space: normal; overflow-wrap: anywhere; }
 @media (min-width: 40rem) { .kv th { width: 14rem; } }
+
+/* ---------- diagrams */
+.prose pre.mermaid { background: var(--surface); color: var(--text-2); border: 1px solid var(--line); text-align: center; white-space: pre; }
+.prose pre.mermaid[data-processed] { white-space: normal; padding: 1.25rem; }
+.prose pre.mermaid svg { max-width: 100%; height: auto; }

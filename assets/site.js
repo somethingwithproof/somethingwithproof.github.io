@@ -102,7 +102,7 @@ function initFilters() {
 }
 
 function initCopy() {
-  for (const pre of document.querySelectorAll(".prose pre")) {
+  for (const pre of document.querySelectorAll(".prose pre:not(.mermaid)")) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "copy";
@@ -147,7 +147,41 @@ function initSidebar() {
   if (side && matchMedia("(max-width: 61.99rem)").matches) side.open = false;
 }
 
+function initDiagrams() {
+  const blocks = [...document.querySelectorAll("pre.mermaid")];
+  if (blocks.length === 0) return;
+  // Keep each diagram's source so a theme change can render it again.
+  const sources = new Map(blocks.map((el) => [el, el.textContent]));
+  const root = document.documentElement;
+  const dark = () => (root.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+  let ready = null;
+  const load = () => ready ??= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "/assets/vendor/mermaid.min.js";
+    s.onload = () => resolve(window.mermaid);
+    s.onerror = reject;
+    document.head.append(s);
+  });
+  const render = async () => {
+    const mermaid = await load();
+    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark() ? "dark" : "default",
+      fontFamily: getComputedStyle(document.body).fontFamily });
+    const valid = [];
+    for (const [el, src] of sources) {
+      el.removeAttribute("data-processed");
+      el.textContent = src;
+      // A diagram that fails to parse stays visible as source instead of an error graphic.
+      if (await mermaid.parse(src, { suppressErrors: true })) valid.push(el);
+    }
+    if (valid.length) await mermaid.run({ nodes: valid, suppressErrors: true });
+  };
+  render();
+  document.addEventListener("themechange", render);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!root.dataset.theme) render(); });
+}
+
 initSearch();
+initDiagrams();
 initFilters();
 initCopy();
 initToc();

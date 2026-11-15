@@ -509,6 +509,9 @@ def load_model(site: dict) -> list[dict]:
                     meta = json.loads((CACHE / f"{p['repo']}.json").read_text())
                     if meta.get("private"):
                         sys.exit(f"{p['repo']} is private; remove it from content/sitemap.json")
+                    if "license" in p:
+                        # The owner's statement of the license wins over GitHub's detection of a LICENSE file.
+                        meta["license"] = p["license"]
                     summary = p.get("summary") or clean_desc(meta["description"]) or "[Description pending]"
                     p.update(name=meta["name"], summary=summary, kind=p.get("kind", "Reference"),
                              meta=meta, slug=p["repo"].lower())

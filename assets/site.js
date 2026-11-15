@@ -166,18 +166,20 @@ function initDiagrams() {
     const mermaid = await load();
     mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark() ? "dark" : "default",
       fontFamily: getComputedStyle(document.body).fontFamily });
-    const valid = [];
     for (const [el, src] of sources) {
-      el.removeAttribute("data-processed");
+      delete el.dataset.processed;
       el.textContent = src;
-      // A diagram that fails to parse stays visible as source instead of an error graphic.
-      if (await mermaid.parse(src, { suppressErrors: true })) valid.push(el);
     }
+    // A diagram that fails to parse stays visible as source instead of an error graphic.
+    const ok = await Promise.all(blocks.map((el) => mermaid.parse(sources.get(el), { suppressErrors: true })));
+    const valid = blocks.filter((_, i) => ok[i]);
     if (valid.length) await mermaid.run({ nodes: valid, suppressErrors: true });
   };
-  render();
-  document.addEventListener("themechange", render);
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!root.dataset.theme) render(); });
+  // If Mermaid cannot load, every diagram stays readable as source.
+  const draw = () => { render().catch(() => {}); };
+  draw();
+  document.addEventListener("themechange", draw);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!root.dataset.theme) draw(); });
 }
 
 initSearch();

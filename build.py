@@ -294,12 +294,14 @@ def fetch_doc(owner: str, repo: str, path: str) -> str:
 MERMAID_VERSION = "12.2.0"
 MERMAID_TARBALL = f"https://registry.npmjs.org/mermaid/-/mermaid-{MERMAID_VERSION}.tgz"
 MERMAID_INTEGRITY = "sha512-w7nr/SFrLO7BaVTs3dQTvYSV6nYSBj0Yy9DjBhsIJtAcHqRzXSq4Pg32ujHZ/AdWsAMNEvvhbm5dt9E2tOiHzw=="
+MERMAID_JS = CACHE / f"mermaid-{MERMAID_VERSION}.min.js"
+MERMAID_LICENSE = CACHE / f"mermaid-{MERMAID_VERSION}.LICENSE"
 
 
-def vendor_mermaid() -> tuple[Path, Path]:
-    js, lic = CACHE / f"mermaid-{MERMAID_VERSION}.min.js", CACHE / f"mermaid-{MERMAID_VERSION}.LICENSE"
-    if js.exists() and lic.exists():
-        return js, lic
+def vendor_mermaid() -> None:
+    """Ensure MERMAID_JS and MERMAID_LICENSE are in the cache, downloading them if needed."""
+    if MERMAID_JS.exists() and MERMAID_LICENSE.exists():
+        return
     import base64, hashlib, io, tarfile
     req = urllib.request.Request(MERMAID_TARBALL, headers={"User-Agent": "static-site-build"})
     with urllib.request.urlopen(req, timeout=60) as res:
@@ -310,13 +312,12 @@ def vendor_mermaid() -> tuple[Path, Path]:
     CACHE.mkdir(exist_ok=True)
     with tarfile.open(fileobj=io.BytesIO(blob), mode="r:gz") as tar:
         # Read the two members by name; nothing is extracted to a path from the archive.
-        for member, dest in (("package/dist/mermaid.min.js", js), ("package/LICENSE", lic)):
+        for member, dest in (("package/dist/mermaid.min.js", MERMAID_JS), ("package/LICENSE", MERMAID_LICENSE)):
             data = tar.extractfile(member)
             if data is None:
                 sys.exit(f"mermaid {MERMAID_VERSION}: {member} missing from tarball")
             dest.write_bytes(data.read())
     print(f"vendored mermaid {MERMAID_VERSION}")
-    return js, lic
 
 
 # ---------------------------------------------------------------- README sanitizer
@@ -967,10 +968,10 @@ def build(site: dict) -> None:
 
     (OUT / "search.json").write_text(json.dumps(index, separators=(",", ":")))
     if diagrams:
-        js, lic = vendor_mermaid()
+        vendor_mermaid()
         (OUT / "assets" / "vendor").mkdir()
-        shutil.copy(js, OUT / "assets" / "vendor" / "mermaid.min.js")
-        shutil.copy(lic, OUT / "assets" / "vendor" / "mermaid.LICENSE.txt")
+        shutil.copy(MERMAID_JS, OUT / "assets" / "vendor" / "mermaid.min.js")
+        shutil.copy(MERMAID_LICENSE, OUT / "assets" / "vendor" / "mermaid.LICENSE.txt")
         print(f"diagrams: {diagrams} on {diagram_pages} pages")
     nf = {"level": 0, "url": "/404.html", "name": "Page not found", "crumbs": [("Home", "/")]}
     (OUT / "404.html").write_text(docs_page(site, nf,

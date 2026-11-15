@@ -344,7 +344,8 @@
               "repo": "utility-scripts-collection"
             },
             {
-              "repo": "contact-enrichment-tos"
+              "repo": "contact-enrichment-tos",
+              "license": "Proprietary"
             }
           ]
         }

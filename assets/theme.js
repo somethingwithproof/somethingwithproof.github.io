@@ -19,6 +19,7 @@
       root.dataset.theme = next;
       try { localStorage.setItem("theme", next); } catch { /* not persisted */ }
       label();
+      document.dispatchEvent(new Event("themechange"));
     });
   });
 })();

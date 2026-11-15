@@ -196,8 +196,10 @@ def fetch_repo(owner: str, repo: str) -> str:
 
     def release(raw):
         # releases/latest skips pre-releases, so take the newest published release
-        # from the list instead. Drafts are not public and are never shown.
-        rels = [r for r in (json.loads(raw) if raw else []) if not r.get("draft") and r.get("published_at")]
+        # from every page of the list, whose order is not documented. Drafts are not
+        # public and are never shown. --slurp wraps the pages in one outer array.
+        pages = json.loads(raw) if raw else []
+        rels = [r for page in pages for r in page if not r.get("draft") and r.get("published_at")]
         if not rels:
             return None
         rel = max(rels, key=lambda r: r["published_at"])
@@ -216,7 +218,7 @@ def fetch_repo(owner: str, repo: str) -> str:
         return [{"msg": c["commit"]["message"].split("\n", 1)[0][:140], "date": c["commit"]["committer"]["date"],
                  "url": c["html_url"]} for c in (json.loads(raw) if raw else [])]
 
-    keep["release"] = optional("release", release, f"repos/{owner}/{repo}/releases?per_page=20")
+    keep["release"] = optional("release", release, "--paginate", "--slurp", f"repos/{owner}/{repo}/releases?per_page=100")
     keep["docs"] = optional("docs", doc_list, f"repos/{owner}/{repo}/contents/docs")
     # A fork's default branch mostly carries upstream history, so its commits say nothing about this work.
     keep["commits"] = [] if meta.get("fork") else optional("commits", commit_list, f"repos/{owner}/{repo}/commits?per_page=5")

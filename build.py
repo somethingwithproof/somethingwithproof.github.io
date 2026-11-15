@@ -262,6 +262,30 @@ def fetch_all(site: dict) -> None:
     with ThreadPoolExecutor(max_workers=8) as pool:
         for line in pool.map(lambda r: fetch_repo(site["owner"], r), repos):
             print("fetched", line)
+    docs = [p for s in site["sections"] for t in s["topics"] for p in t["pages"] if "doc" in p]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for line in pool.map(lambda p: fetch_doc(site["owner"], p["doc"], p["path"]), docs):
+            print("fetched", line)
+
+
+def doc_cache(repo: str, path: str) -> Path:
+    return CACHE / f"{repo}--{path.replace('/', '--')}.html"
+
+
+def fetch_doc(owner: str, repo: str, path: str) -> str:
+    # A listed document is required content: unlike optional repo data, a 404
+    # here means the sitemap is out of date, so the build stops either way
+    # unless a cached copy exists for a transient failure.
+    out = doc_cache(repo, path)
+    try:
+        raw = gh("api", "-H", "Accept: application/vnd.github.html+json", f"repos/{owner}/{repo}/contents/{path}")
+    except subprocess.CalledProcessError as e:
+        if out.exists() and not re.search(r"HTTP 404\b", e.stderr or ""):
+            print(f"warning: {repo}/{path}: request failed, keeping cached copy")
+            return f"{repo}/{path}: cached"
+        raise RuntimeError(f"{repo}/{path}: {(e.stderr or '').strip()}") from e
+    out.write_text(raw)
+    return f"{repo}/{path}: {len(raw)} bytes"
 
 
 # ---------------------------------------------------------------- README sanitizer
@@ -396,9 +420,9 @@ class Sanitizer(HTMLParser):
 GENERATED_IDS = {"gh-project-details", "gh-upstream", "gh-recent-changes", "gh-repo-docs"}
 
 
-def sanitize_readme(raw: str, owner: str, repo: str, branch: str) -> tuple[str, list]:
-    s = Sanitizer(f"https://github.com/{owner}/{repo}/blob/{branch}/",
-                  f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/")
+def sanitize_readme(raw: str, owner: str, repo: str, branch: str, subdir: str = "") -> tuple[str, list]:
+    s = Sanitizer(f"https://github.com/{owner}/{repo}/blob/{branch}/{subdir}",
+                  f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{subdir}")
     # repo_details() appends headings with these IDs after the README, so the
     # README must not claim them; a clash would leave two TOC targets with one ID.
     s.ids.update(GENERATED_IDS)
@@ -424,6 +448,10 @@ def status_of(meta: dict) -> tuple[str, str]:
     return "Code available", "ok"
 
 
+# (repository, file name) -> site URL, so project pages link to documents published here.
+DOC_PAGES: dict[tuple[str, str], str] = {}
+
+
 def load_model(site: dict) -> list[dict]:
     pages = []
     home = {"level": 1, "url": "/", "name": "Home", "crumbs": []}
@@ -447,6 +475,13 @@ def load_model(site: dict) -> list[dict]:
                     summary = p.get("summary") or clean_desc(meta["description"]) or "[Description pending]"
                     p.update(name=meta["name"], summary=summary, kind=p.get("kind", "Reference"),
                              meta=meta, slug=p["repo"].lower())
+                elif "doc" in p:
+                    repo_meta = json.loads((CACHE / f"{p['doc']}.json").read_text())
+                    if repo_meta.get("private"):
+                        sys.exit(f"{p['doc']} is private; remove its documents from content/sitemap.json")
+                    p.update(repo_meta=repo_meta, kind=p.get("kind", "Reference"),
+                             slug=f"{p['doc']}-{Path(p['path']).stem}".lower().replace("_", "-"))
+                    DOC_PAGES[(p["doc"], Path(p["path"]).name)] = f"{t_url}{p['slug']}/"
                 else:
                     p["slug"] = p["local"]
                 p["url"] = f"{t_url}{p['slug']}/"
@@ -791,7 +826,12 @@ def repo_details(p: dict, owner: str) -> tuple[str, list]:
         out.append(f'<h2 id="gh-recent-changes">Recent changes</h2><ul>{li}</ul>')
         heads.append((2, "Recent changes", "gh-recent-changes"))
     if m.get("docs"):
-        li = "".join(f'<li><a href="{safe_url(d["url"]) or "#"}">{E(d["name"])}</a></li>' for d in m["docs"])
+        def doc_link(d):
+            here = DOC_PAGES.get((p["repo"], d["name"]))
+            if here:
+                return f'<li><a href="{here}">{E(d["name"])}</a> <span class="act-meta">on this site</span></li>'
+            return f'<li><a href="{safe_url(d["url"]) or "#"}">{E(d["name"])}</a></li>'
+        li = "".join(doc_link(d) for d in m["docs"])
         out.append(f'<h2 id="gh-repo-docs">Documentation in the repository</h2><ul>{li}</ul>')
         heads.append((2, "Documentation in the repository", "gh-repo-docs"))
     return "".join(out), heads
@@ -819,6 +859,21 @@ def render_leaf(site: dict, page: dict, built: str) -> str:
         extra, extra_heads = repo_details(p, site["owner"])
         prose += extra
         heads = heads + extra_heads
+    elif "doc" in p:
+        rm = p["repo_meta"]
+        branch = rm.get("default_branch") or "HEAD"
+        subdir = p["path"].rsplit("/", 1)[0] + "/" if "/" in p["path"] else ""
+        prose, heads = sanitize_readme(doc_cache(p["doc"], p["path"]).read_text(), site["owner"], p["doc"], branch, subdir)
+        src = f'{rm["html_url"]}/blob/{branch}/{p["path"]}'
+        repo_page = next((q for s in site["sections"] for t in s["topics"] for q in t["pages"] if q.get("repo") == p["doc"]), None)
+        repo_link = (f'<a href="{repo_page["url"]}">{E(p["doc"])}</a>' if repo_page else E(p["doc"]))
+        facts = (f'<div><dt>Project</dt><dd>{repo_link}</dd></div>'
+                 f'<div><dt>Source file</dt><dd><a href="{E(src)}">{E(p["path"])}</a></dd></div>'
+                 f'<div><dt>Repository updated</dt><dd>{fmt_date(rm.get("pushed_at"))}</dd></div>')
+        head = (f'<div class="page-head"><div><p class="chips-row">{status_badge(rm)}{badge(p["kind"], "muted")}</p>'
+                f'<h1>{E(p["name"])}</h1><p class="lede">{E(p["summary"])}</p></div></div>'
+                f'<dl class="facts">{facts}</dl>')
+        edit = f'<a href="{E(src)}">View this page\'s source</a>'
     else:
         prose = (CONTENT / "pages" / f"{p['local']}.html").read_text()
         heads = [(int(m[0]), html.unescape(re.sub("<[^>]+>", "", m[2])), m[1])

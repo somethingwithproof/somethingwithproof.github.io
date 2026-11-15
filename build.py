@@ -472,7 +472,7 @@ class Sanitizer(HTMLParser):
         return "".join(x for x in self.out if x is not None)
 
 
-GENERATED_IDS = {"gh-project-details", "gh-upstream", "gh-recent-changes", "gh-repo-docs"}
+GENERATED_IDS = {"gh-project-details", "gh-upstream", "gh-recent-changes", "gh-repo-docs", "gh-milestones"}
 
 
 def sanitize_readme(raw: str, owner: str, repo: str, branch: str, subdir: str = "") -> tuple[str, list]:
@@ -792,12 +792,15 @@ def furthest_milestone(m: dict) -> dict | None:
 
 
 def milestone_cell(m: dict) -> str:
+    total = len(m.get("milestones") or [])
+    if not total:
+        return "None on GitHub"
+    count = f'{total} milestone{"" if total == 1 else "s"}'
     ms = furthest_milestone(m)
     if not ms:
-        return "None on GitHub"
-    total = len(m["milestones"])
+        return f'No issues closed yet <span class="act-meta">({count})</span>'
     return (f'{E(ms["title"])} <span class="act-meta">({ms["closed"]} of {ms["open"] + ms["closed"]} issues closed; '
-            f'{total} milestones)</span>')
+            f'{count})</span>')
 
 
 def compare_table(projects: list[dict]) -> str:

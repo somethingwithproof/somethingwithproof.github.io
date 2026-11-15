@@ -342,6 +342,9 @@
             },
             {
               "repo": "utility-scripts-collection"
+            },
+            {
+              "repo": "contact-enrichment-tos"
             }
           ]
         }

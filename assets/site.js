@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 // Progressive enhancements. Every page works without this file.
 // Index entries and page text are treated as untrusted: only textContent.
 

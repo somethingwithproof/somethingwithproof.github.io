@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Build the static site into _site/.
 
     python3 build.py --fetch   # refresh repo metadata and READMEs via gh

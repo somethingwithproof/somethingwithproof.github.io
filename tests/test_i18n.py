@@ -17,8 +17,8 @@ def extract_placeholders(value: str) -> list[str]:
 
 
 class TestI18nCatalogs(unittest.TestCase):
-    def test_all_20_tier1_locales_have_key_and_placeholder_parity(self):
-        self.assertEqual(len(build.SUPPORTED_LOCALES), 20)
+    def test_all_45_locales_have_key_and_placeholder_parity(self):
+        self.assertEqual(len(build.SUPPORTED_LOCALES), 45)
         catalogs = build.validate_locales()
         en = catalogs["en"]
         self.assertGreater(len(en), 0)
@@ -45,11 +45,21 @@ class TestI18nCatalogs(unittest.TestCase):
         self.assertEqual(build.resolve_locale("zh-CN"), "zh-CN")
         self.assertEqual(build.resolve_locale("zh-Hant-TW"), "zh-TW")
         self.assertEqual(build.resolve_locale("ar-SA"), "ar")
+        self.assertEqual(build.resolve_locale("ar-EG"), "ar-EG")
+        self.assertEqual(build.resolve_locale("ar-MA"), "ar-MA")
+        self.assertEqual(build.resolve_locale("fr-SN"), "fr-SN")
+        self.assertEqual(build.resolve_locale("sw"), "sw-KE")
+        self.assertEqual(build.resolve_locale("yo"), "yo-NG")
+        self.assertEqual(build.resolve_locale("fa-IR"), "fa")
+        self.assertEqual(build.resolve_locale("iw-IL"), "he")
+        self.assertEqual(build.resolve_locale("ur-PK"), "ur")
+        self.assertEqual(build.resolve_locale("tl-PH"), "fil")
         self.assertEqual(build.resolve_locale("hi-IN"), "hi")
         self.assertEqual(build.resolve_locale("unknown"), "en")
 
+        rtl_locales = {"ar", "ar-EG", "ar-MA", "fa", "he", "ur"}
         for loc in build.SUPPORTED_LOCALES:
-            self.assertEqual(build.is_rtl(loc), loc == "ar")
+            self.assertEqual(build.is_rtl(loc), loc in rtl_locales)
 
     def test_build_outputs_locales_switcher_and_rtl(self):
         orig_cache = build.CACHE

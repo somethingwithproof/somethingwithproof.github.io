@@ -34,7 +34,12 @@ OUT = ROOT / "_site"
 SUPPORTED_LOCALES = (
     "en", "de", "es", "fr", "it", "pt-BR", "nl", "ru", "uk",
     "ja", "ko", "zh-CN", "zh-TW", "ar", "hi", "pl", "tr", "sv", "vi", "id",
+    "af-ZA", "am-ET", "ar-EG", "ar-MA", "fr-MA", "fr-SN", "ha-NG", "ig-NG",
+    "mg-MG", "rw-RW", "so-SO", "sw-KE", "xh-ZA", "yo-NG", "zu-ZA",
+    "bn", "fa", "he", "mr", "ta", "te", "th", "ur", "ms", "fil",
 )
+
+RTL_LOCALES = frozenset({"ar", "ar-EG", "ar-MA", "fa", "he", "ur"})
 
 LOCALE_NAMES = {
     "en": "English",
@@ -57,13 +62,56 @@ LOCALE_NAMES = {
     "sv": "Svenska",
     "vi": "Tiếng Việt",
     "id": "Bahasa Indonesia",
+    "af-ZA": "Afrikaans (Suid-Afrika)",
+    "am-ET": "አማርኛ (ኢትዮጵያ)",
+    "ar-EG": "العربية (مصر)",
+    "ar-MA": "العربية (المغرب)",
+    "fr-MA": "Français (Maroc)",
+    "fr-SN": "Français (Sénégal)",
+    "ha-NG": "Hausa (Najeriya)",
+    "ig-NG": "Igbo (Naịjịrịa)",
+    "mg-MG": "Malagasy (Madagasikara)",
+    "rw-RW": "Kinyarwanda (U Rwanda)",
+    "so-SO": "Soomaali (Soomaaliya)",
+    "sw-KE": "Kiswahili (Kenya)",
+    "xh-ZA": "isiXhosa (uMzantsi Afrika)",
+    "yo-NG": "Yorùbá (Nàìjíríà)",
+    "zu-ZA": "isiZulu (iNingizimu Afrika)",
+    "bn": "বাংলা",
+    "fa": "فارسی",
+    "he": "עברית",
+    "mr": "मराठी",
+    "ta": "தமிழ்",
+    "te": "తెలుగు",
+    "th": "ไทย",
+    "ur": "اردو",
+    "ms": "Bahasa Melayu",
+    "fil": "Filipino",
+}
+
+_BASE_ALIASES = {
+    "af": "af-ZA",
+    "am": "am-ET",
+    "ha": "ha-NG",
+    "ig": "ig-NG",
+    "in": "id",
+    "iw": "he",
+    "mg": "mg-MG",
+    "pt": "pt-BR",
+    "rw": "rw-RW",
+    "so": "so-SO",
+    "sw": "sw-KE",
+    "tl": "fil",
+    "xh": "xh-ZA",
+    "yo": "yo-NG",
+    "zu": "zu-ZA",
 }
 
 _LOCALE_CACHE: dict[str, dict[str, str]] = {}
 
 
 def is_rtl(locale: str) -> bool:
-    return resolve_locale(locale) == "ar"
+    return resolve_locale(locale) in RTL_LOCALES
 
 
 def resolve_locale(tag: str | None) -> str:
@@ -77,16 +125,16 @@ def resolve_locale(tag: str | None) -> str:
         return "zh-TW"
     if lower in ("zh", "zh-cn", "zh-sg", "zh-hans") or lower.startswith("zh-hans-"):
         return "zh-CN"
-    if lower in ("pt", "pt-br"):
-        return "pt-BR"
     for loc in SUPPORTED_LOCALES:
         if loc.lower() == lower:
             return loc
     base = lower.split("-", 1)[0]
     if base == "zh":
-        return "zh-TW" if any(t in lower for t in ("hant", "-tw", "-hk", "-mo")) else "zh-CN"
-    if base == "pt":
-        return "pt-BR"
+        if "-hans" in lower:
+            return "zh-CN"
+        return "zh-TW" if any(t in lower for t in ("-hant", "-tw", "-hk", "-mo")) else "zh-CN"
+    if base in _BASE_ALIASES:
+        return _BASE_ALIASES[base]
     for loc in SUPPORTED_LOCALES:
         if loc.lower() == base:
             return loc

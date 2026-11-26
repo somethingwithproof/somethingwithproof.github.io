@@ -18,6 +18,7 @@ const FALLBACK = {
 const cache = new Map();
 let activeLocale = "en";
 let activeCatalog = FALLBACK;
+let applySeq = 0;
 
 export function isRtl(locale) {
   return resolveLocale(locale) === "ar";
@@ -93,7 +94,15 @@ function applyTranslations(catalog) {
 }
 
 export async function applyLocale(locale, { persist = true } = {}) {
-  activeLocale = resolveLocale(locale);
+  const target = resolveLocale(locale);
+  const seq = ++applySeq;
+  let catalog = FALLBACK;
+  try {
+    catalog = await fetchCatalog(target);
+  } catch { /* offline or file:// fallback keeps static HTML intact */ }
+  if (seq !== applySeq) return;
+  activeLocale = target;
+  activeCatalog = catalog;
   document.documentElement.lang = activeLocale;
   document.documentElement.dir = isRtl(activeLocale) ? "rtl" : "ltr";
   if (persist) {
@@ -101,10 +110,7 @@ export async function applyLocale(locale, { persist = true } = {}) {
   }
   const select = document.querySelector("[data-lang-select]");
   if (select) select.value = activeLocale;
-  try {
-    activeCatalog = await fetchCatalog(activeLocale);
-    applyTranslations(activeCatalog);
-  } catch { /* offline or file:// fallback keeps static HTML intact */ }
+  applyTranslations(activeCatalog);
   document.dispatchEvent(new CustomEvent("localechange", { detail: { locale: activeLocale } }));
 }
 
@@ -117,7 +123,7 @@ export function initI18n() {
       applyLocale(select.value, { persist: true }).catch(() => {});
     });
   }
-  if (initial !== document.documentElement.lang) {
+  if (initial !== document.documentElement.lang || initial !== "en") {
     applyLocale(initial, { persist: false }).catch(() => {});
   }
 }

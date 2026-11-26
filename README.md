@@ -18,6 +18,14 @@ Mermaid diagrams in READMEs and documents are drawn in the browser by a copy of 
 
 The build stops if a listed repository is private, or if any text colour pair falls below 4.5:1 contrast.
 
+## Localization
+
+UI chrome, navigation, search, and labels ship in 20 Tier 1 locales under `locales/` (`en`, `de`, `es`, `fr`, `it`, `pt-BR`, `nl`, `ru`, `uk`, `ja`, `ko`, `zh-CN`, `zh-TW`, `ar`, `hi`, `pl`, `tr`, `sv`, `vi`, `id`).
+
+- Static HTML defaults to English and can be built in any supported locale via `python3 build.py --lang <locale>`.
+- The header includes a language switcher backed by `/assets/locales/*.json` with browser language auto-detection and `<html lang="ar" dir="rtl">` for Arabic.
+- Run `python3 -m unittest discover -s tests` to verify locale parity and build output.
+
 ## Deploy
 
 `.github/workflows/pages.yml` builds and deploys on every push to `main` and once a day.

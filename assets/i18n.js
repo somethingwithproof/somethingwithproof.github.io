@@ -4,7 +4,30 @@
 export const SUPPORTED_LOCALES = [
   "en", "de", "es", "fr", "it", "pt-BR", "nl", "ru", "uk",
   "ja", "ko", "zh-CN", "zh-TW", "ar", "hi", "pl", "tr", "sv", "vi", "id",
+  "af-ZA", "am-ET", "ar-EG", "ar-MA", "fr-MA", "fr-SN", "ha-NG", "ig-NG",
+  "mg-MG", "rw-RW", "so-SO", "sw-KE", "xh-ZA", "yo-NG", "zu-ZA",
+  "bn", "fa", "he", "mr", "ta", "te", "th", "ur", "ms", "fil",
 ];
+
+const RTL_LOCALES = new Set(["ar", "ar-EG", "ar-MA", "fa", "he", "ur"]);
+
+const BASE_ALIASES = {
+  af: "af-ZA",
+  am: "am-ET",
+  ha: "ha-NG",
+  ig: "ig-NG",
+  in: "id",
+  iw: "he",
+  mg: "mg-MG",
+  pt: "pt-BR",
+  rw: "rw-RW",
+  so: "so-SO",
+  sw: "sw-KE",
+  tl: "fil",
+  xh: "xh-ZA",
+  yo: "yo-NG",
+  zu: "zu-ZA",
+};
 
 const FALLBACK = {
   "search.empty": "No pages match.",
@@ -21,7 +44,7 @@ let activeCatalog = FALLBACK;
 let applySeq = 0;
 
 export function isRtl(locale) {
-  return resolveLocale(locale) === "ar";
+  return RTL_LOCALES.has(resolveLocale(locale));
 }
 
 export function resolveLocale(tag) {
@@ -31,12 +54,14 @@ export function resolveLocale(tag) {
   if (!lower || lower === "c" || lower === "posix") return "en";
   if (["zh-tw", "zh-hk", "zh-mo", "zh-hant"].includes(lower) || lower.startsWith("zh-hant-")) return "zh-TW";
   if (["zh", "zh-cn", "zh-sg", "zh-hans"].includes(lower) || lower.startsWith("zh-hans-")) return "zh-CN";
-  if (lower === "pt" || lower === "pt-br") return "pt-BR";
   const exact = SUPPORTED_LOCALES.find((loc) => loc.toLowerCase() === lower);
   if (exact) return exact;
   const base = lower.split("-")[0];
-  if (base === "zh") return /hant|-tw|-hk|-mo/.test(lower) ? "zh-TW" : "zh-CN";
-  if (base === "pt") return "pt-BR";
+  if (base === "zh") {
+    if (lower.includes("-hans")) return "zh-CN";
+    return /-hant|-tw|-hk|-mo/.test(lower) ? "zh-TW" : "zh-CN";
+  }
+  if (Object.hasOwn(BASE_ALIASES, base)) return BASE_ALIASES[base];
   return SUPPORTED_LOCALES.find((loc) => loc.toLowerCase() === base) || "en";
 }
 

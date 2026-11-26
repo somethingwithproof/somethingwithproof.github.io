@@ -7,6 +7,7 @@ export const SUPPORTED_LOCALES = [
   "af-ZA", "am-ET", "ar-EG", "ar-MA", "fr-MA", "fr-SN", "ha-NG", "ig-NG",
   "mg-MG", "rw-RW", "so-SO", "sw-KE", "xh-ZA", "yo-NG", "zu-ZA",
   "bn", "fa", "he", "mr", "ta", "te", "th", "ur", "ms", "fil",
+  "bs", "hr", "sr",
 ];
 
 const RTL_LOCALES = new Set(["ar", "ar-EG", "ar-MA", "fa", "he", "ur"]);

@@ -27,8 +27,96 @@ from urllib.parse import urljoin, urlsplit
 
 ROOT = Path(__file__).resolve().parent
 CONTENT = ROOT / "content"
+LOCALES_DIR = ROOT / "locales"
 CACHE = ROOT / "cache"
 OUT = ROOT / "_site"
+
+SUPPORTED_LOCALES = (
+    "en", "de", "es", "fr", "it", "pt-BR", "nl", "ru", "uk",
+    "ja", "ko", "zh-CN", "zh-TW", "ar", "hi", "pl", "tr", "sv", "vi", "id",
+)
+
+LOCALE_NAMES = {
+    "en": "English",
+    "de": "Deutsch",
+    "es": "Español",
+    "fr": "Français",
+    "it": "Italiano",
+    "pt-BR": "Português (Brasil)",
+    "nl": "Nederlands",
+    "ru": "Русский",
+    "uk": "Українська",
+    "ja": "日本語",
+    "ko": "한국어",
+    "zh-CN": "简体中文",
+    "zh-TW": "繁體中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "pl": "Polski",
+    "tr": "Türkçe",
+    "sv": "Svenska",
+    "vi": "Tiếng Việt",
+    "id": "Bahasa Indonesia",
+}
+
+_LOCALE_CACHE: dict[str, dict[str, str]] = {}
+
+
+def is_rtl(locale: str) -> bool:
+    return resolve_locale(locale) == "ar"
+
+
+def resolve_locale(tag: str | None) -> str:
+    if not tag:
+        return "en"
+    clean = re.split(r"[.@]", tag.strip(), maxsplit=1)[0].replace("_", "-")
+    lower = clean.lower()
+    if not lower or lower in ("c", "posix"):
+        return "en"
+    if lower in ("zh-tw", "zh-hk", "zh-mo", "zh-hant") or lower.startswith("zh-hant-"):
+        return "zh-TW"
+    if lower in ("zh", "zh-cn", "zh-sg", "zh-hans") or lower.startswith("zh-hans-"):
+        return "zh-CN"
+    if lower in ("pt", "pt-br"):
+        return "pt-BR"
+    for loc in SUPPORTED_LOCALES:
+        if loc.lower() == lower:
+            return loc
+    base = lower.split("-", 1)[0]
+    if base == "zh":
+        return "zh-TW" if any(t in lower for t in ("hant", "-tw", "-hk", "-mo")) else "zh-CN"
+    if base == "pt":
+        return "pt-BR"
+    for loc in SUPPORTED_LOCALES:
+        if loc.lower() == base:
+            return loc
+    return "en"
+
+
+def load_locale(locale: str) -> dict[str, str]:
+    resolved = resolve_locale(locale)
+    if resolved not in _LOCALE_CACHE:
+        path = LOCALES_DIR / f"{resolved}.json"
+        _LOCALE_CACHE[resolved] = json.loads(path.read_text(encoding="utf-8"))
+    return _LOCALE_CACHE[resolved]
+
+
+def validate_locales() -> dict[str, dict[str, str]]:
+    en = load_locale("en")
+    en_keys = set(en.keys())
+    loaded = {"en": en}
+    for loc in SUPPORTED_LOCALES:
+        cat = load_locale(loc)
+        if set(cat.keys()) != en_keys:
+            missing = sorted(en_keys - set(cat.keys()))
+            extra = sorted(set(cat.keys()) - en_keys)
+            sys.exit(f"locale {loc} key mismatch: missing={missing} extra={extra}")
+        loaded[loc] = cat
+    return loaded
+
+
+def tr(catalog: dict[str, str], key: str) -> str:
+    return catalog.get(key) or load_locale("en").get(key, key)
 
 # ---------------------------------------------------------------- colour
 # Material 3 assigns colour roles by tone, where tone is CIELAB L*. Contrast
@@ -583,25 +671,35 @@ def monogram(name: str) -> str:
     return E(letters.upper())
 
 
-def header(site: dict, page: dict, docs: bool) -> str:
+def header(site: dict, page: dict, docs: bool, locale: str = "en") -> str:
+    cat = load_locale(locale)
     cur = page.get("section")
-    links = [("/", "Projects", page["level"] == 1),
-             (site["sections"][0]["url"], "Docs", docs and cur is not site["sections"][-1]),
-             ("/about/", "About", cur is site["sections"][-1]),
-             (f"https://github.com/{site['owner']}", "GitHub", False)]
-    nav = "".join(f'<a href="{u}"{" aria-current=\"true\"" if on else ""}>{n}</a>' for u, n, on in links)
+    links = [("/", "nav.projects", page["level"] == 1),
+             (site["sections"][0]["url"], "nav.docs", docs and cur is not site["sections"][-1]),
+             ("/about/", "nav.about", cur is site["sections"][-1]),
+             (f"https://github.com/{site['owner']}", "nav.github", False)]
+    nav = "".join(
+        f'<a href="{u}"{" aria-current=\"true\"" if on else ""} data-i18n="{k}">{E(tr(cat, k))}</a>'
+        for u, k, on in links
+    )
+    lang_options = "".join(
+        f'<option value="{code}"{" selected" if code == locale else ""}>{E(LOCALE_NAMES[code])}</option>'
+        for code in SUPPORTED_LOCALES
+    )
     return f"""<header class="site-header">
   <div class="header-row">
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">swp</span>{E(site["title"])}</a>
-    <nav class="primary" aria-label="Main">{nav}</nav>
+    <nav class="primary" aria-label="{E(tr(cat, "nav.main"))}" data-i18n-aria-label="nav.main">{nav}</nav>
     <div class="tools">
       <div class="search" data-search hidden>
-        <label for="q" class="vh">Search all pages</label>
-        <input id="q" type="search" placeholder="Search docs" autocomplete="off" aria-controls="q-results">
+        <label for="q" class="vh" data-i18n="search.label">{E(tr(cat, "search.label"))}</label>
+        <input id="q" type="search" placeholder="{E(tr(cat, "search.placeholder"))}" data-i18n-placeholder="search.placeholder" autocomplete="off" aria-controls="q-results">
         <kbd aria-hidden="true">/</kbd>
         <ul id="q-results" class="results" role="list" hidden></ul>
       </div>
-      <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+      <label for="lang-select" class="vh" data-i18n="lang.label">{E(tr(cat, "lang.label"))}</label>
+      <select id="lang-select" class="lang-select" data-lang-select aria-label="{E(tr(cat, "lang.label"))}" data-i18n-aria-label="lang.label">{lang_options}</select>
+      <button class="icon-btn" type="button" data-theme-toggle aria-label="{E(tr(cat, "theme.switch"))}" data-i18n-aria-label="theme.switch">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"></path></svg>
       </button>
     </div>
@@ -609,11 +707,13 @@ def header(site: dict, page: dict, docs: bool) -> str:
 </header>"""
 
 
-def shell(site: dict, page: dict, body: str, built: str, docs: bool) -> str:
+def shell(site: dict, page: dict, body: str, built: str, docs: bool, locale: str = "en") -> str:
+    cat = load_locale(locale)
     title = site["title"] if page["level"] == 1 else f'{page["name"]} · {site["title"]}'
     desc = page.get("summary") or site["intro"]
+    dir_attr = ' dir="rtl"' if is_rtl(locale) else ""
     return f"""<!doctype html>
-<html lang="en">
+<html lang="{E(locale)}"{dir_attr}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -625,13 +725,13 @@ def shell(site: dict, page: dict, body: str, built: str, docs: bool) -> str:
 <script type="module" src="/assets/site.js"></script>
 </head>
 <body class="{"docs" if docs else "home"}">
-<a class="skip" href="#main">Skip to content</a>
-{header(site, page, docs)}
+<a class="skip" href="#main" data-i18n="skip_to_content">{E(tr(cat, "skip_to_content"))}</a>
+{header(site, page, docs, locale)}
 {body}
 <footer class="site-footer">
   <div class="footer-row">
     <span>Built {E(built)} from public repositories on <a href="https://github.com/{site["owner"]}">GitHub</a>.</span>
-    <span class="footer-links"><a href="/about/security/">Security</a><a href="/about/contributing/">Contributing</a><a href="/">All projects</a></span>
+    <span class="footer-links"><a href="/about/security/" data-i18n="footer.security">{E(tr(cat, "footer.security"))}</a><a href="/about/contributing/" data-i18n="footer.contributing">{E(tr(cat, "footer.contributing"))}</a><a href="/" data-i18n="footer.all_projects">{E(tr(cat, "footer.all_projects"))}</a></span>
   </div>
 </footer>
 </body>
@@ -639,7 +739,8 @@ def shell(site: dict, page: dict, body: str, built: str, docs: bool) -> str:
 """
 
 
-def docs_sidebar(site: dict, page: dict) -> str:
+def docs_sidebar(site: dict, page: dict, locale: str = "en") -> str:
+    cat = load_locale(locale)
     groups = []
     for s in site["sections"]:
         topics = []
@@ -653,25 +754,26 @@ def docs_sidebar(site: dict, page: dict) -> str:
                 f'<li><a href="{p["url"]}"{" aria-current=\"page\"" if page.get("page") is p else ""}>{E(p["name"])}</a></li>'
                 for p in t["pages"])
             topics.append(f'<li><details{" open" if here else ""}><summary>{E(t["name"])}</summary>'
-                          f'<ul><li><a href="{t["url"]}"{t_cur}>Overview</a></li>{kids}</ul></details></li>')
+                          f'<ul><li><a href="{t["url"]}"{t_cur} data-i18n="nav.overview">{E(tr(cat, "nav.overview"))}</a></li>{kids}</ul></details></li>')
         s_cur = ' aria-current="page"' if page.get("section") is s and page["level"] == 2 else ""
         groups.append(f'<div class="nav-group"><a class="nav-group-title" href="{s["url"]}"{s_cur}>{E(s["name"])}</a>'
                       f'<ul>{"".join(topics)}</ul></div>')
-    return ('<details class="side-wrap" open data-side><summary>Browse docs</summary>'
-            f'<nav class="side" aria-label="Docs">{"".join(groups)}</nav></details>')
+    return (f'<details class="side-wrap" open data-side><summary data-i18n="nav.browse_docs">{E(tr(cat, "nav.browse_docs"))}</summary>'
+            f'<nav class="side" aria-label="{E(tr(cat, "nav.docs"))}" data-i18n-aria-label="nav.docs">{"".join(groups)}</nav></details>')
 
 
-def docs_page(site: dict, page: dict, body: str, toc: str, built: str) -> str:
+def docs_page(site: dict, page: dict, body: str, toc: str, built: str, locale: str = "en") -> str:
+    cat = load_locale(locale)
     crumbs = "".join(f'<li><a href="{u}">{E(n)}</a></li>' for n, u in page["crumbs"][1:])
-    crumb_nav = f'<nav class="crumbs" aria-label="Breadcrumb"><ol>{crumbs}</ol></nav>' if crumbs else ""
-    toc_html = (f'<aside class="toc" aria-label="On this page"><p class="toc-title">On this page</p>{toc}</aside>'
+    crumb_nav = f'<nav class="crumbs" aria-label="{E(tr(cat, "nav.breadcrumb"))}" data-i18n-aria-label="nav.breadcrumb"><ol>{crumbs}</ol></nav>' if crumbs else ""
+    toc_html = (f'<aside class="toc" aria-label="{E(tr(cat, "nav.on_this_page"))}" data-i18n-aria-label="nav.on_this_page"><p class="toc-title" data-i18n="nav.on_this_page">{E(tr(cat, "nav.on_this_page"))}</p>{toc}</aside>'
                 if toc else "")
     inner = f"""<div class="docs-grid{" has-toc" if toc else ""}">
-  {docs_sidebar(site, page)}
+  {docs_sidebar(site, page, locale)}
   <main id="main" tabindex="-1" class="docs-main">{crumb_nav}{body}</main>
   {toc_html}
 </div>"""
-    return shell(site, page, inner, built, docs=True)
+    return shell(site, page, inner, built, docs=True, locale=locale)
 
 
 # GitHub linguist colours: developers already associate them with each language.
@@ -719,7 +821,8 @@ def heatmap() -> str:
     return f'<div class="heatmap" aria-hidden="true"><div class="hm-grid">{"".join(cells)}</div></div>{caption}'
 
 
-def render_home(site: dict, counts: dict, built: str) -> str:
+def render_home(site: dict, counts: dict, built: str, locale: str = "en") -> str:
+    cat = load_locale(locale)
     user = json.loads((CACHE / "_user.json").read_text())
     groups, chips, n_projects, stars, langs = [], [], 0, 0, set()
     for s in site["sections"]:
@@ -735,7 +838,7 @@ def render_home(site: dict, counts: dict, built: str) -> str:
             gid = f'{s["slug"]}-{t["slug"]}'
             chips.append(f'<a class="chip" href="#{gid}">{E(t["name"])}</a>')
             groups.append(f'<section class="group"><h2 id="{gid}" class="group-title">{E(t["name"])}</h2>'
-                          f'<p class="group-summary">{E(t["blurb"])} <a href="{t["url"]}">Read the docs</a></p>'
+                          f'<p class="group-summary">{E(t["blurb"])} <a href="{t["url"]}" data-i18n="home.read_docs">{E(tr(cat, "home.read_docs"))}</a></p>'
                           f'<ul role="list" class="card-grid">{"".join(project_card(p) for p in projects)}</ul></section>')
     years = datetime.now(timezone.utc).year - int(user["created_at"][:4])
     stats = [f"{years} years on GitHub", f"{n_projects} public projects", f"{len(langs)} languages",
@@ -745,7 +848,7 @@ def render_home(site: dict, counts: dict, built: str) -> str:
 <section class="intro">
   <div class="intro-text">
     <header class="page-header">
-      <h1 class="page-title">Open source</h1>
+      <h1 class="page-title" data-i18n="home.title">{E(tr(cat, "home.title"))}</h1>
       <p class="page-intro">{E(site["tagline"])} {E(site["intro"])} Most of the work is <a href="#monitoring-cacti-plugins">monitoring for Cacti</a>, from HPC plugins to the RRDtool stack underneath.</p>
     </header>
     <p class="stat-list">{"".join(f'<span>{E(x)}</span>' for x in stats)}</p>
@@ -755,17 +858,17 @@ def render_home(site: dict, counts: dict, built: str) -> str:
       <img src="{E(user["avatar_url"])}&amp;s=128" alt="" width="64" height="64" class="avatar">
       <div class="profile-name"><p class="profile-title">{owner}</p><p class="profile-handle" translate="no">github.com/{owner}</p></div>
       <div class="profile-actions">
-        <a class="button button-primary" href="https://github.com/{owner}">GitHub profile</a>
-        <a class="button button-secondary" href="https://github.com/{owner}?tab=repositories&amp;type=public">All repos</a>
+        <a class="button button-primary" href="https://github.com/{owner}" data-i18n="home.github_profile">{E(tr(cat, "home.github_profile"))}</a>
+        <a class="button button-secondary" href="https://github.com/{owner}?tab=repositories&amp;type=public" data-i18n="home.all_repos">{E(tr(cat, "home.all_repos"))}</a>
       </div>
     </div>
     {heatmap()}
   </div>
-  <nav class="chip-nav" aria-label="Groups of projects">{"".join(chips)}</nav>
+  <nav class="chip-nav" aria-label="{E(tr(cat, "nav.project_groups"))}" data-i18n-aria-label="nav.project_groups">{"".join(chips)}</nav>
 </section>
 {"".join(groups)}
 </main>"""
-    return shell(site, {"level": 1, "name": "Home", "summary": site["intro"]}, body, built, docs=False)
+    return shell(site, {"level": 1, "name": "Home", "summary": site["intro"]}, body, built, docs=False, locale=locale)
 
 
 def topic_cards(s: dict, si: int) -> str:
@@ -837,7 +940,7 @@ def activity_list(projects: list[dict], limit: int) -> str:
     return f'<ul class="activity" role="list">{li}</ul>'
 
 
-def render_section(site: dict, page: dict, built: str) -> str:
+def render_section(site: dict, page: dict, built: str, locale: str = "en") -> str:
     s = page["section"]
     projects = projects_of(s["topics"])
     n = sum(len(t["pages"]) for t in s["topics"])
@@ -852,18 +955,18 @@ def render_section(site: dict, page: dict, built: str) -> str:
         def bar(d):
             return "".join(f'<li><span>{E(k)}</span><b>{v}</b></li>' for k, v in sorted(d.items(), key=lambda kv: (-kv[1], kv[0])))
         recent = sorted(projects, key=lambda p: p["meta"].get("pushed_at") or "", reverse=True)[:6]
-        body += (f'<h2 id="at-a-glance" class="docs-h2">At a glance</h2><div class="glance">'
-                 f'<div><h3>Languages</h3><ul class="tally" role="list">{bar(langs)}</ul></div>'
-                 f'<div><h3>Status</h3><ul class="tally" role="list">{bar(statuses)}</ul></div></div>'
-                 f'<h2 id="recently-updated" class="docs-h2">Recently updated</h2>'
+        body += (f'<h2 id="at-a-glance" class="docs-h2" data-i18n="section.at_a_glance">At a glance</h2><div class="glance">'
+                 f'<div><h3 data-i18n="section.languages">Languages</h3><ul class="tally" role="list">{bar(langs)}</ul></div>'
+                 f'<div><h3 data-i18n="section.status">Status</h3><ul class="tally" role="list">{bar(statuses)}</ul></div></div>'
+                 f'<h2 id="recently-updated" class="docs-h2" data-i18n="section.recently_updated">Recently updated</h2>'
                  f'<ul class="card-grid card-grid-docs" role="list">{"".join(project_card(p) for p in recent)}</ul>')
-    body += f'<h2 id="topics" class="docs-h2">Topics</h2>{topic_cards(s, 0)}'
-    toc = ('<ol><li class="l2"><a href="#at-a-glance">At a glance</a></li><li class="l2"><a href="#recently-updated">Recently updated</a></li>'
-           '<li class="l2"><a href="#topics">Topics</a></li></ol>') if projects else ""
-    return docs_page(site, page, body, toc, built)
+    body += f'<h2 id="topics" class="docs-h2" data-i18n="section.topics">Topics</h2>{topic_cards(s, 0)}'
+    toc = ('<ol><li class="l2"><a href="#at-a-glance" data-i18n="section.at_a_glance">At a glance</a></li><li class="l2"><a href="#recently-updated" data-i18n="section.recently_updated">Recently updated</a></li>'
+           '<li class="l2"><a href="#topics" data-i18n="section.topics">Topics</a></li></ol>') if projects else ""
+    return docs_page(site, page, body, toc, built, locale=locale)
 
 
-def render_topic(site: dict, page: dict, built: str) -> str:
+def render_topic(site: dict, page: dict, built: str, locale: str = "en") -> str:
     t = page["topic"]
     body = f'<h1>{E(t["name"])}</h1><p class="lede">{E(t["blurb"])}</p>'
     if t.get("local"):
@@ -871,17 +974,17 @@ def render_topic(site: dict, page: dict, built: str) -> str:
     projects = projects_of([t])
     toc = []
     if projects:
-        body += f'<h2 id="compare" class="docs-h2">Compare</h2>{compare_table(projects)}'
-        toc.append(("compare", "Compare"))
+        body += f'<h2 id="compare" class="docs-h2" data-i18n="section.compare">Compare</h2>{compare_table(projects)}'
+        toc.append(("compare", "Compare", "section.compare"))
     if t["pages"]:
-        body += f'<h2 id="pages" class="docs-h2">Pages</h2><ul class="card-grid card-grid-docs" role="list">{"".join(project_card(p, "h3") for p in t["pages"])}</ul>'
-        toc.append(("pages", "Pages"))
+        body += f'<h2 id="pages" class="docs-h2" data-i18n="section.pages">Pages</h2><ul class="card-grid card-grid-docs" role="list">{"".join(project_card(p, "h3") for p in t["pages"])}</ul>'
+        toc.append(("pages", "Pages", "section.pages"))
     act = activity_list(projects, 8)
     if act:
-        body += f'<h2 id="recent-activity" class="docs-h2">Recent activity</h2>{act}'
-        toc.append(("recent-activity", "Recent activity"))
-    toc_html = "<ol>" + "".join(f'<li class="l2"><a href="#{i}">{n}</a></li>' for i, n in toc) + "</ol>" if len(toc) > 1 else ""
-    return docs_page(site, page, body, toc_html, built)
+        body += f'<h2 id="recent-activity" class="docs-h2" data-i18n="section.recent_activity">Recent activity</h2>{act}'
+        toc.append(("recent-activity", "Recent activity", "section.recent_activity"))
+    toc_html = "<ol>" + "".join(f'<li class="l2"><a href="#{i}" data-i18n="{k}">{n}</a></li>' for i, n, k in toc) + "</ol>" if len(toc) > 1 else ""
+    return docs_page(site, page, body, toc_html, built, locale=locale)
 
 
 def repo_details(p: dict, owner: str) -> tuple[str, list]:
@@ -932,7 +1035,7 @@ def repo_details(p: dict, owner: str) -> tuple[str, list]:
     return "".join(out), heads
 
 
-def render_leaf(site: dict, page: dict, built: str) -> str:
+def render_leaf(site: dict, page: dict, built: str, locale: str = "en") -> str:
     p = page["page"]
     meta = p.get("meta")
     if meta:
@@ -978,22 +1081,25 @@ def render_leaf(site: dict, page: dict, built: str) -> str:
         edit = ""
     sibs = page["topic"]["pages"]
     i = sibs.index(p)
-    pager = '<nav class="pager" aria-label="Previous and next">'
+    pager = '<nav class="pager" aria-label="Previous and next" data-i18n-aria-label="nav.previous_and_next">'
     if i > 0:
-        pager += f'<a href="{sibs[i-1]["url"]}"><span>Previous</span>{E(sibs[i-1]["name"])}</a>'
+        pager += f'<a href="{sibs[i-1]["url"]}"><span data-i18n="nav.previous">Previous</span>{E(sibs[i-1]["name"])}</a>'
     if i < len(sibs) - 1:
-        pager += f'<a class="next" href="{sibs[i+1]["url"]}"><span>Next</span>{E(sibs[i+1]["name"])}</a>'
+        pager += f'<a class="next" href="{sibs[i+1]["url"]}"><span data-i18n="nav.next">Next</span>{E(sibs[i+1]["name"])}</a>'
     pager += "</nav>"
     toc = ""
     if len(heads) >= 2:
         toc = "<ol>" + "".join(f'<li class="l{lvl}"><a href="#{hid}">{E(txt)}</a></li>' for lvl, txt, hid in heads) + "</ol>"
     body = f'{head}<div class="prose">{prose}</div>{pager}<p class="page-foot">{edit}</p>'
-    return docs_page(site, page, body, toc, built)
+    return docs_page(site, page, body, toc, built, locale=locale)
 
 
 # ---------------------------------------------------------------- build
 
-def build(site: dict) -> None:
+def build(site: dict, locale: str = "en") -> None:
+    resolved_locale = resolve_locale(locale)
+    validate_locales()
+    cat = load_locale(resolved_locale)
     pages = load_model(site)
     counts: dict = {lvl: sum(1 for p in pages if p["level"] == lvl) for lvl in (1, 2, 3, 4)}
     counts["all"] = site["page_count"] = len(pages)
@@ -1002,20 +1108,26 @@ def build(site: dict) -> None:
         shutil.rmtree(OUT)
     (OUT / "assets").mkdir(parents=True)
     for f in (ROOT / "assets").iterdir():
-        shutil.copy(f, OUT / "assets" / f.name)
+        if f.is_dir():
+            shutil.copytree(f, OUT / "assets" / f.name)
+        else:
+            shutil.copy(f, OUT / "assets" / f.name)
+    (OUT / "assets" / "locales").mkdir(exist_ok=True)
+    for code in SUPPORTED_LOCALES:
+        shutil.copy(LOCALES_DIR / f"{code}.json", OUT / "assets" / "locales" / f"{code}.json")
     (OUT / "assets" / "tokens.css").write_text(build_tokens())
 
     index = []
     diagrams = diagram_pages = 0
     for page in pages:
         if page["level"] == 1:
-            out = render_home(site, counts, built)
+            out = render_home(site, counts, built, locale=resolved_locale)
         elif page["level"] == 2:
-            out = render_section(site, page, built)
+            out = render_section(site, page, built, locale=resolved_locale)
         elif page["level"] == 3:
-            out = render_topic(site, page, built)
+            out = render_topic(site, page, built, locale=resolved_locale)
         else:
-            out = render_leaf(site, page, built)
+            out = render_leaf(site, page, built, locale=resolved_locale)
         dest = OUT / page["url"].strip("/") / "index.html"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(out)
@@ -1031,10 +1143,17 @@ def build(site: dict) -> None:
         shutil.copy(MERMAID_JS, OUT / "assets" / "vendor" / "mermaid.min.js")
         shutil.copy(MERMAID_LICENSE, OUT / "assets" / "vendor" / "mermaid.LICENSE.txt")
         print(f"diagrams: {diagrams} on {diagram_pages} pages")
-    nf = {"level": 0, "url": "/404.html", "name": "Page not found", "crumbs": [("Home", "/")]}
-    (OUT / "404.html").write_text(docs_page(site, nf,
-        '<h1>Page not found</h1><p class="lede">That address does not exist. <a href="/">Browse all projects.</a></p>',
-        "", built))
+    nf = {"level": 0, "url": "/404.html", "name": tr(cat, "not_found.title"), "crumbs": [("Home", "/")]}
+    (OUT / "404.html").write_text(docs_page(
+        site,
+        nf,
+        f'<h1 data-i18n="not_found.title">{E(tr(cat, "not_found.title"))}</h1>'
+        f'<p class="lede"><span data-i18n="not_found.message">{E(tr(cat, "not_found.message"))}</span> '
+        f'<a href="/" data-i18n="not_found.browse">{E(tr(cat, "not_found.browse"))}</a></p>',
+        "",
+        built,
+        locale=resolved_locale,
+    ))
     (OUT / ".nojekyll").write_text("")
     print(f"built {counts['all']} pages: L1 {counts[1]}, L2 {counts[2]}, L3 {counts[3]}, L4 {counts[4]}")
 
@@ -1042,11 +1161,12 @@ def build(site: dict) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fetch", action="store_true", help="refresh cache/ from GitHub with gh")
+    ap.add_argument("--lang", default="en", help="default build locale (BCP-47, e.g. en, de, ja, ar)")
     args = ap.parse_args()
     site = json.loads((CONTENT / "sitemap.json").read_text())
     if args.fetch:
         fetch_all(site)
-    build(site)
+    build(site, locale=args.lang)
 
 
 if __name__ == "__main__":

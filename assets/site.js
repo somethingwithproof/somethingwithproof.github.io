@@ -4,6 +4,8 @@
 // Progressive enhancements. Every page works without this file.
 // Index entries and page text are treated as untrusted: only textContent.
 
+import { initI18n, t } from "./i18n.js";
+
 const sameOrigin = (u) => {
   try { return new URL(u, location.origin).origin === location.origin; } catch { return false; }
 };
@@ -29,7 +31,7 @@ function initSearch() {
     if (hits.length === 0) {
       const li = document.createElement("li");
       li.className = "empty";
-      li.textContent = "No pages match.";
+      li.textContent = t("search.empty");
       list.append(li);
     }
     for (const h of hits.slice(0, 12)) {
@@ -40,7 +42,7 @@ function initSearch() {
       const title = document.createElement("b");
       title.textContent = h.t;
       const where = document.createElement("small");
-      where.textContent = h.p || "Home";
+      where.textContent = h.p || t("nav.home");
       const desc = document.createElement("small");
       desc.textContent = h.d;
       a.append(title, where, desc);
@@ -99,7 +101,7 @@ function initFilters() {
         card.hidden = f !== "all" && card.dataset.section !== f;
         if (!card.hidden) shown += 1;
       }
-      if (status) status.textContent = `${shown} projects shown`;
+      if (status) status.textContent = t("home.projects_shown", { count: shown });
     });
   }
 }
@@ -109,18 +111,23 @@ function initCopy() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "copy";
-    btn.textContent = "Copy";
+    btn.textContent = t("code.copy");
     btn.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(pre.querySelector("code")?.innerText ?? pre.innerText);
-        btn.textContent = "Copied";
+        btn.textContent = t("code.copied");
       } catch {
-        btn.textContent = "Press Cmd+C";
+        btn.textContent = t("code.press_copy");
       }
-      setTimeout(() => { btn.textContent = "Copy"; }, 1600);
+      setTimeout(() => { btn.textContent = t("code.copy"); }, 1600);
     });
     pre.append(btn);
   }
+  document.addEventListener("localechange", () => {
+    for (const btn of document.querySelectorAll(".prose pre .copy")) {
+      btn.textContent = t("code.copy");
+    }
+  });
 }
 
 function initToc() {
@@ -185,6 +192,7 @@ function initDiagrams() {
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!root.dataset.theme) draw(); });
 }
 
+initI18n();
 initSearch();
 initDiagrams();
 initFilters();

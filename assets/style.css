@@ -52,6 +52,12 @@ code, kbd, pre, .code-title { font-family: ui-monospace, SFMono-Regular, Menlo, 
 .results small { display: block; color: var(--text-2); font-size: 0.8rem; }
 .results .empty { padding: 0.55rem 0.7rem; color: var(--text-2); font-size: 0.9rem; }
 .icon-btn { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); cursor: pointer; }
+.lang-select { height: 2.5rem; max-width: 9.5rem; padding: 0 0.6rem; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 0.85rem; cursor: pointer; }
+[dir="rtl"] .tools { margin-left: 0; margin-right: auto; }
+[dir="rtl"] .search input { padding: 0 0.85rem 0 2.2rem; }
+[dir="rtl"] .search kbd { right: auto; left: 0.6rem; }
+[dir="rtl"] .results { right: auto; left: 0; }
+[dir="rtl"] .skip { left: auto; right: 1rem; }
 
 /* ---------- badges */
 .badge { display: inline-flex; align-items: center; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; line-height: 1.6; white-space: nowrap; }

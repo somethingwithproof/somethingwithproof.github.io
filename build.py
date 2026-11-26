@@ -37,6 +37,7 @@ SUPPORTED_LOCALES = (
     "af-ZA", "am-ET", "ar-EG", "ar-MA", "fr-MA", "fr-SN", "ha-NG", "ig-NG",
     "mg-MG", "rw-RW", "so-SO", "sw-KE", "xh-ZA", "yo-NG", "zu-ZA",
     "bn", "fa", "he", "mr", "ta", "te", "th", "ur", "ms", "fil",
+    "bs", "hr", "sr",
 )
 
 RTL_LOCALES = frozenset({"ar", "ar-EG", "ar-MA", "fa", "he", "ur"})
@@ -87,6 +88,9 @@ LOCALE_NAMES = {
     "ur": "اردو",
     "ms": "Bahasa Melayu",
     "fil": "Filipino",
+    "bs": "Bosanski",
+    "hr": "Hrvatski",
+    "sr": "Српски",
 }
 
 _BASE_ALIASES = {

@@ -114,10 +114,10 @@ export function initI18n() {
   if (select) {
     select.value = initial;
     select.addEventListener("change", () => {
-      applyLocale(select.value, { persist: true });
+      applyLocale(select.value, { persist: true }).catch(() => {});
     });
   }
   if (initial !== document.documentElement.lang) {
-    applyLocale(initial, { persist: false });
+    applyLocale(initial, { persist: false }).catch(() => {});
   }
 }
